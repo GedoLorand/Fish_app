@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1062420181883",
+    "project_id": "login-fish",
+    "storage_bucket": "login-fish.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1062420181883:android:425f0b63a3aad316f7c3de",
+        "android_client_info": {
+          "package_name": "com.example.login_fish_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBrHo2vS9bZW0lY4vsCRP3w6CG0MXE76cQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
