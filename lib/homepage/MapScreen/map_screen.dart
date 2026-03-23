@@ -12,7 +12,7 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  LatLng _initialPosition = LatLng(47.4979, 19.0402); // Default: Budapest
+  LatLng _initialPosition = LatLng(47.4979, 19.0402); // Deefault: Budapest
   bool _locationLoaded = false;
   late final MapController _mapController;
   bool _mapReady = false;
