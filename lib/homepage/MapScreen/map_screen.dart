@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 
@@ -11,13 +12,15 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  GoogleMapController? mapController;
-  LatLng _initialPosition = const LatLng(47.4979, 19.0402); // Default: Budapest
+  LatLng _initialPosition = LatLng(47.4979, 19.0402); // Default: Budapest
   bool _locationLoaded = false;
+  late final MapController _mapController;
+  bool _mapReady = false;
 
   @override
   void initState() {
     super.initState();
+    _mapController = MapController();
     _determinePosition();
   }
 
@@ -53,59 +56,90 @@ class _MapScreenState extends State<MapScreen> {
       _initialPosition = LatLng(position.latitude, position.longitude);
       _locationLoaded = true;
     });
-
-    // Ha már létrejött a térkép, kamera mozgatása
-    mapController?.animateCamera(CameraUpdate.newLatLng(_initialPosition));
+    // Try to move after the current frame in case map needs a rebuild first
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_mapReady) {
+        try {
+          _mapController.move(_initialPosition, 14.0);
+        } catch (_) {}
+      }
+    });
+    // Ha már létrejött a térkép, egyszerűen állítsuk be az initial position-t (flutter_map használja)
   }
 
-  void _onMapCreated(GoogleMapController controller) {
-    mapController = controller;
-
-    if (_locationLoaded) {
-      mapController!.animateCamera(CameraUpdate.newLatLng(_initialPosition));
-    }
-  }
+  // FlutterMap nem igényel külön controller beállítást itt
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SizedBox(
-        width: double.infinity,
-        height: double.infinity,
-        child: GoogleMap(
-          mapType: MapType.hybrid,
-          initialCameraPosition: CameraPosition(target: LatLng(26, 42)),
-          onMapCreated: (GoogleMapController controller) {},
-        ),
-      ),
-    );
-    return Scaffold(
-      body: _locationLoaded
-          ? GoogleMap(
-              onMapCreated: _onMapCreated,
-              initialCameraPosition: CameraPosition(
-                target: _initialPosition,
-                zoom: 14.0,
+      body: Stack(
+        children: [
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _initialPosition,
+              initialZoom: 14.0,
+              onMapReady: () {
+                _mapReady = true;
+                if (_locationLoaded) {
+                  try {
+                    _mapController.move(_initialPosition, 14.0);
+                  } catch (_) {}
+                }
+                setState(() {});
+              },
+            ),
+            children: [
+              TileLayer(
+                urlTemplate:
+                    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c'],
+                userAgentPackageName: 'com.example.login_fish_app',
               ),
-              myLocationEnabled: true,
-              myLocationButtonEnabled: true,
-            )
-          : const Center(child: CircularProgressIndicator()),
-
-      floatingActionButton: SizedBox(
-        width: 68,
-        height: 68,
-        child: FloatingActionButton(
-          backgroundColor: const Color.fromARGB(255, 14, 66, 18),
-          elevation: 8,
-          child: const Icon(
-            Icons.camera_alt,
-            color: AppTheme.textColor,
-            size: 50,
+              MarkerLayer(
+                markers: _locationLoaded
+                    ? [
+                        Marker(
+                          width: 40,
+                          height: 40,
+                          point: _initialPosition,
+                          child: const Icon(
+                            Icons.location_on,
+                            size: 40,
+                            color: Colors.red,
+                          ),
+                        ),
+                      ]
+                    : [],
+              ),
+            ],
           ),
-          onPressed: () {
-            // ide jön majd a fénykép funkció
-          },
+          if (!_locationLoaded || !_mapReady)
+            const Positioned.fill(
+              child: Align(
+                alignment: Alignment.center,
+                child: CircularProgressIndicator(),
+              ),
+            ),
+        ],
+      ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 16.0, right: 16.0),
+        child: SizedBox(
+          width: 68,
+          height: 68,
+          child: FloatingActionButton(
+            backgroundColor: const Color.fromARGB(255, 14, 66, 18),
+            elevation: 8,
+            child: const Icon(
+              Icons.camera_alt,
+              color: AppTheme.textColor,
+              size: 50,
+            ),
+            onPressed: () {
+              // ide jön majd a fénykép funkció
+            },
+          ),
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
