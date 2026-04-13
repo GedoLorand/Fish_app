@@ -2,16 +2,167 @@ import 'package:flutter/material.dart';
 import 'package:login_fish_app/homepage/Header/global_header.dart';
 import 'package:login_fish_app/homepage/Header/custom_drawer.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-class Gallery extends StatelessWidget {
+class Gallery extends StatefulWidget {
   const Gallery({super.key});
+
+  @override
+  State<Gallery> createState() => _GalleryState();
+}
+
+class _GalleryState extends State<Gallery> {
+  String? _uid;
+
+  @override
+  void initState() {
+    super.initState();
+    _uid = FirebaseAuth.instance.currentUser?.uid;
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _photosStream() {
+    final uid = _uid;
+    if (uid == null) {
+      // empty stream if not logged in
+      return const Stream.empty();
+    }
+    return FirebaseFirestore.instance
+        .collection('photos')
+        .where('uid', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
+        .snapshots();
+  }
+
+  void _showPhotoDetails(Map<String, dynamic> data) {
+    final url = data['url'] as String?;
+    final species = data['species'] ?? '-';
+    final weight = data['weight'] ?? '-';
+    DateTime? createdAt;
+    if (data['createdAt'] is Timestamp) {
+      createdAt = (data['createdAt'] as Timestamp).toDate();
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFFE8F5E9),
+        title: const Text('Kép részletei'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (url != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8.0),
+                  child: Image.network(url, height: 220, fit: BoxFit.cover),
+                ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Text(
+                    'Fajta: ',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Expanded(child: Text(species.toString())),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Text(
+                    'Súly: ',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Expanded(child: Text(weight.toString())),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Text(
+                    'Feltöltés: ',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Expanded(
+                    child: Text(
+                      createdAt != null ? createdAt.toLocal().toString() : '-',
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Bezár'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: GlobalHeader(),
       drawer: CustomDrawer(),
-      body: const Center(child: Text("Itt vannak a képek")),
+      body: _uid == null
+          ? const Center(
+              child: Text('Be kell jelentkezned, hogy lásd a galériát'),
+            )
+          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _photosStream(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return const Center(child: Text('Még nincsenek képeid'));
+                }
+                final docs = snapshot.data!.docs;
+                return Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: GridView.builder(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 1,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
+                    itemCount: docs.length,
+                    itemBuilder: (context, index) {
+                      final data = docs[index].data();
+                      final url = data['url'] as String?;
+                      return GestureDetector(
+                        onTap: () => _showPhotoDetails(data),
+                        child: Card(
+                          clipBehavior: Clip.hardEdge,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: url != null
+                              ? Image.network(
+                                  url,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder: (context, child, progress) {
+                                    if (progress == null) return child;
+                                    return const Center(
+                                      child: CircularProgressIndicator(),
+                                    );
+                                  },
+                                )
+                              : const Center(child: Text('Nincs kép')),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
       bottomNavigationBar: Container(
         height: 60,
         decoration: BoxDecoration(
@@ -31,7 +182,7 @@ class Gallery extends StatelessWidget {
                 child: Row(
                   children: [
                     Icon(Icons.filter_alt, color: AppTheme.textColor),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Text(
                       'Filter',
                       style: TextStyle(
