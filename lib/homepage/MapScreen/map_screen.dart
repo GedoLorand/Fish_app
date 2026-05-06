@@ -109,15 +109,22 @@ class _MapScreenState extends State<MapScreen> {
       _uploading = true;
     });
     try {
-      final String uid = FirebaseAuth.instance.currentUser?.uid ?? 'anonymous';
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('User not signed in');
+
+      final String uid = user.uid;
       final String filename = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final ref = FirebaseStorage.instance.ref().child('photos/$uid/$filename');
-      final uploadTask = ref.putFile(file);
-      await uploadTask;
+
+      // Store file under a user-scoped folder in Storage
+      final ref = FirebaseStorage.instance.ref().child(
+        'user_images/$uid/$filename',
+      );
+      final uploadTask = await ref.putFile(file);
       final url = await ref.getDownloadURL();
 
       final docData = <String, dynamic>{
         'url': url,
+        'fileName': filename,
         'uid': uid,
         'createdAt': FieldValue.serverTimestamp(),
       };
@@ -125,7 +132,12 @@ class _MapScreenState extends State<MapScreen> {
         docData.addAll(metadata);
       }
 
-      await FirebaseFirestore.instance.collection('photos').add(docData);
+      // Save metadata under /users/{uid}/images/{autoId} so it matches Firestore rules
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('images')
+          .add(docData);
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

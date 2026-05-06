@@ -27,9 +27,11 @@ class _GalleryState extends State<Gallery> {
       // empty stream if not logged in
       return const Stream.empty();
     }
+    // Read images from user-scoped collection to match security rules
     return FirebaseFirestore.instance
-        .collection('photos')
-        .where('uid', isEqualTo: uid)
+        .collection('users')
+        .doc(uid)
+        .collection('images')
         .orderBy('createdAt', descending: true)
         .snapshots();
   }

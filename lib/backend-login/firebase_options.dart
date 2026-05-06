@@ -51,11 +51,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBrHo2vS9bZW0lY4vsCRP3w6CG0MXE76cQ',
-    appId: '1:1062420181883:android:425f0b63a3aad316f7c3de',
-    messagingSenderId: '1062420181883',
-    projectId: 'login-fish',
-    storageBucket: 'login-fish.firebasestorage.app',
+    apiKey: 'AIzaSyBgRwhz6Q3BFBAqZ84Zp5Tlk8aUWnHKN50',
+    appId: '1:233643539373:android:a1b682e4a249927df93f24',
+    messagingSenderId: '233643539373',
+    projectId: 'fish-app-release',
+    storageBucket: 'fish-app-release.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -85,5 +85,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'login-fish.firebasestorage.app',
     measurementId: 'G-N2KK000PKP',
   );
-
 }
