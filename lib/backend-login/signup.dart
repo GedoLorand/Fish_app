@@ -1,10 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:get/get.dart';
 import 'package:login_fish_app/backend-login/wrapper.dart';
 import 'package:login_fish_app/backend-login/auth_service.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:login_fish_app/backend-login/complete_profile.dart';
 
 class Signup extends StatefulWidget {
   const Signup({super.key});
@@ -112,171 +115,201 @@ class _SignupState extends State<Signup> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Sign Up")),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            // Név
-            TextField(
-              controller: name,
-              decoration: InputDecoration(
-                hintText: 'Full name',
-                border: OutlineInputBorder(),
+      backgroundColor: AppTheme.backgroundColor,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Center(
+                child: Image.asset(
+                  'assets/icon/app_icon.png',
+                  width: 100,
+                  height: 100,
+                ),
               ),
-            ),
-            SizedBox(height: 10),
+              const SizedBox(height: 20),
 
-            // Email
-            TextField(
-              controller: email,
-              decoration: InputDecoration(
-                hintText: 'Email',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            SizedBox(height: 10),
-
-            // Jelszó
-            TextField(
-              controller: password,
-              decoration: InputDecoration(
-                hintText: 'Password',
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
-            ),
-            SizedBox(height: 10),
-
-            // Nem
-            DropdownButtonFormField<String>(
-              value: _selectedGender,
-              decoration: InputDecoration(
-                hintText: 'Select Gender',
-                border: OutlineInputBorder(),
-              ),
-              items: [
-                DropdownMenuItem(value: 'male', child: Text('Male')),
-                DropdownMenuItem(value: 'female', child: Text('Female')),
-                DropdownMenuItem(value: 'other', child: Text('Other')),
-              ],
-              onChanged: (value) {
-                setState(() {
-                  _selectedGender = value;
-                });
-              },
-            ),
-            SizedBox(height: 10),
-
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Birth Date',
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  SizedBox(height: 5),
-                  GestureDetector(
-                    onTap: () => _selectBirthDate(context),
-                    child: Row(
-                      children: [
-                        Icon(Icons.calendar_today, size: 20),
-                        SizedBox(width: 10),
-                        Text(
-                          _selectedBirthDate == null
-                              ? 'Select your birth date'
-                              : '${_selectedBirthDate!.year}-${_selectedBirthDate!.month}-${_selectedBirthDate!.day}',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: _selectedBirthDate == null
-                                ? Colors.grey
-                                : Colors.black,
+              Card(
+                color: AppTheme.surfaceColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: name,
+                        decoration: InputDecoration(
+                          hintText: 'Név',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: email,
+                        decoration: InputDecoration(
+                          hintText: 'Email',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: password,
+                        decoration: InputDecoration(
+                          hintText: 'Jelszó',
+                          border: OutlineInputBorder(),
+                        ),
+                        obscureText: true,
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: _selectedGender,
+                        decoration: InputDecoration(
+                          hintText: 'Nem',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'male', child: Text('Férfi')),
+                          DropdownMenuItem(value: 'female', child: Text('Nő')),
+                          DropdownMenuItem(
+                            value: 'other',
+                            child: Text('Egyéb'),
+                          ),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _selectedGender = value),
+                      ),
+                      const SizedBox(height: 12),
+                      GestureDetector(
+                        onTap: () => _selectBirthDate(context),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            _selectedBirthDate == null
+                                ? 'Születési dátum kiválasztása'
+                                : '${_selectedBirthDate!.year}-${_selectedBirthDate!.month}-${_selectedBirthDate!.day}',
+                            style: TextStyle(
+                              color: _selectedBirthDate == null
+                                  ? Colors.grey
+                                  : AppTheme.textColor,
+                            ),
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 16),
+                      _isLoading
+                          ? const CircularProgressIndicator()
+                          : SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: signup,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.primaryColor,
+                                  foregroundColor: AppTheme.textColor,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text('Regisztráció'),
+                              ),
+                            ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () async {
+                            setState(() => _isLoading = true);
+                            try {
+                              // Sign in with Firebase using Google. This will throw
+                              // if the email is already registered with a different method.
+                              final cred = await AuthService.signInWithGoogle();
+                              if (cred.user != null) {
+                                final userId = cred.user!.uid;
+                                final userDoc = await FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(userId)
+                                    .get();
+                                if (!userDoc.exists) {
+                                  Get.to(
+                                    CompleteProfile(
+                                      uid: userId,
+                                      email: cred.user!.email,
+                                      name: cred.user!.displayName,
+                                    ),
+                                  );
+                                } else {
+                                  Get.offAll(Wrapper());
+                                }
+                              }
+                            } on FirebaseAuthException catch (e) {
+                              if (e.code ==
+                                      'account-exists-with-different-credential' ||
+                                  e.code ==
+                                      'ERROR_ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL') {
+                                Get.snackbar(
+                                  'Hiba',
+                                  'Ezzel az email-címmel már létezik fiók. Kérlek jelentkezz be e-maillel.',
+                                );
+                                await GoogleSignIn().signOut();
+                              } else {
+                                Get.snackbar(
+                                  'Error',
+                                  'Google sign up failed: ${e.message ?? e.code}',
+                                );
+                              }
+                            } catch (e) {
+                              Get.snackbar(
+                                'Error',
+                                'Google sign up failed: $e',
+                              );
+                            } finally {
+                              setState(() => _isLoading = false);
+                            }
+                          },
+                          icon: Padding(
+                            padding: const EdgeInsets.only(right: 8.0),
+                            child: Image.asset(
+                              'assets/icon/google.png',
+                              width: 24,
+                              height: 24,
+                            ),
+                          ),
+                          label: const Text(
+                            'Regisztráció Google-lal',
+                            style: TextStyle(color: Colors.black87),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            elevation: 2,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-            if (_selectedBirthDate != null) ...[
-              SizedBox(height: 10),
-              Text(
-                'Age: ${_calculateAge(_selectedBirthDate!)} years old',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
                 ),
               ),
             ],
-
-            SizedBox(height: 20),
-
-            // Regisztráció gomb
-            _isLoading
-                ? CircularProgressIndicator()
-                : ElevatedButton(
-                    onPressed: signup,
-                    child: Text("Sign Up"),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: Size(double.infinity, 50),
-                    ),
-                  ),
-            SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: AppTheme.textColor,
-                  padding: EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                icon: Icon(Icons.login),
-                label: Text('Sign up with Google'),
-                onPressed: () async {
-                  setState(() => _isLoading = true);
-                  try {
-                    final cred = await AuthService.signInWithGoogle();
-                    if (cred.user != null) {
-                      // Ensure user document exists in Firestore
-                      final userId = cred.user!.uid;
-                      final userDoc = await FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(userId)
-                          .get();
-                      if (!userDoc.exists) {
-                        await FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(userId)
-                            .set({
-                              'name': cred.user!.displayName ?? '',
-                              'email': cred.user!.email ?? '',
-                              'createdAt': FieldValue.serverTimestamp(),
-                            });
-                      }
-                      Get.offAll(Wrapper());
-                    }
-                  } catch (e) {
-                    Get.snackbar('Error', 'Google sign up failed: $e');
-                  } finally {
-                    setState(() => _isLoading = false);
-                  }
-                },
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

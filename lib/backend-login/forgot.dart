@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
+import 'package:login_fish_app/homepage/Initial/initialType.dart';
 
 class Forgot extends StatefulWidget {
   const Forgot({super.key});
@@ -56,30 +57,73 @@ class _ForgotState extends State<Forgot> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Jelszó visszaállítás")),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            const Text('Add meg az email címed a jelszó visszaállításhoz'),
-            const SizedBox(height: 20),
-            TextField(
-              controller: email,
-              decoration: const InputDecoration(
-                hintText: 'Email cím',
-                border: OutlineInputBorder(),
+      backgroundColor: AppTheme.backgroundColor,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Center(
+                child: Image.asset(
+                  'assets/icon/app_icon.png',
+                  width: 100,
+                  height: 100,
+                ),
               ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 20),
-            _isLoading
-                ? const CircularProgressIndicator()
-                : ElevatedButton(
-                    onPressed: reset,
-                    child: const Text("Link küldése"),
+              const SizedBox(height: 24),
+              Card(
+                color: AppTheme.surfaceColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 4,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Add meg az email címed a jelszó visszaállításhoz',
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: email,
+                        decoration: const InputDecoration(
+                          hintText: 'Email cím',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.emailAddress,
+                      ),
+                      const SizedBox(height: 16),
+                      _isLoading
+                          ? const CircularProgressIndicator()
+                          : SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: reset,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppTheme.primaryColor,
+                                  foregroundColor: AppTheme.textColor,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text('Link küldése'),
+                              ),
+                            ),
+                      TextButton(
+                        onPressed: Get.back,
+                        child: const Text('Vissza'),
+                      ),
+                    ],
                   ),
-            TextButton(onPressed: Get.back, child: const Text('Vissza')),
-          ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
