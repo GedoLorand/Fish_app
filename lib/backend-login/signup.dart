@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:login_fish_app/backend-login/wrapper.dart';
+import 'package:login_fish_app/backend-login/auth_service.dart';
+import 'package:login_fish_app/homepage/Initial/initialType.dart';
 
 class Signup extends StatefulWidget {
   const Signup({super.key});
@@ -229,6 +231,51 @@ class _SignupState extends State<Signup> {
                       minimumSize: Size(double.infinity, 50),
                     ),
                   ),
+            SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: AppTheme.textColor,
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: Icon(Icons.login),
+                label: Text('Sign up with Google'),
+                onPressed: () async {
+                  setState(() => _isLoading = true);
+                  try {
+                    final cred = await AuthService.signInWithGoogle();
+                    if (cred.user != null) {
+                      // Ensure user document exists in Firestore
+                      final userId = cred.user!.uid;
+                      final userDoc = await FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(userId)
+                          .get();
+                      if (!userDoc.exists) {
+                        await FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(userId)
+                            .set({
+                              'name': cred.user!.displayName ?? '',
+                              'email': cred.user!.email ?? '',
+                              'createdAt': FieldValue.serverTimestamp(),
+                            });
+                      }
+                      Get.offAll(Wrapper());
+                    }
+                  } catch (e) {
+                    Get.snackbar('Error', 'Google sign up failed: $e');
+                  } finally {
+                    setState(() => _isLoading = false);
+                  }
+                },
+              ),
+            ),
           ],
         ),
       ),

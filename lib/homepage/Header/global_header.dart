@@ -5,7 +5,7 @@ class GlobalHeader extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      backgroundColor: const Color.fromARGB(255, 14, 66, 18),
+      backgroundColor: AppTheme.surfaceColor,
       centerTitle: true,
       leading: Builder(
         builder: (context) => IconButton(

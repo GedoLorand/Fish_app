@@ -12,8 +12,8 @@ class CustomDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      width: MediaQuery.of(context).size.width * 0.4,
-      backgroundColor: const Color.fromARGB(255, 14, 66, 18).withOpacity(0.95),
+      width: MediaQuery.of(context).size.width * 0.65,
+      backgroundColor: AppTheme.surfaceColor.withOpacity(0.98),
       elevation: 8,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.only(

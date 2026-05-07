@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import 'package:login_fish_app/backend-login/signup.dart';
 import 'package:login_fish_app/backend-login/forgot.dart';
 import 'package:login_fish_app/backend-login/wrapper.dart';
+import 'package:login_fish_app/backend-login/auth_service.dart';
+import 'package:login_fish_app/homepage/Initial/initialType.dart';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -46,6 +48,32 @@ class _LoginState extends State<Login> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isLoading = true);
+    try {
+      final userCredential = await AuthService.signInWithGoogle();
+      if (userCredential.user != null) {
+        Get.offAll(Wrapper());
+      }
+    } on FirebaseAuthException catch (e) {
+      Get.snackbar(
+        'Hiba',
+        e.message ?? 'Google bejelentkezés hiba',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Hiba',
+        'Váratlan hiba történt: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -67,6 +95,23 @@ class _LoginState extends State<Login> {
             _isLoading
                 ? CircularProgressIndicator()
                 : ElevatedButton(onPressed: signIn, child: Text("Login")),
+            SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: AppTheme.textColor,
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                icon: Icon(Icons.login),
+                label: Text('Continue with Google'),
+                onPressed: _signInWithGoogle,
+              ),
+            ),
             const SizedBox(height: 10),
             TextButton(
               onPressed: () => Get.to(Signup()),

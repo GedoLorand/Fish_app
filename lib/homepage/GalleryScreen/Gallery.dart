@@ -48,8 +48,11 @@ class _GalleryState extends State<Gallery> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFFE8F5E9),
-        title: const Text('Kép részletei'),
+        backgroundColor: AppTheme.surfaceColor,
+        title: const Text(
+          'Kép részletei',
+          style: TextStyle(color: AppTheme.textColor),
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -99,7 +102,10 @@ class _GalleryState extends State<Gallery> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Bezár'),
+            child: Text(
+              'Bezár',
+              style: TextStyle(color: AppTheme.primaryColor),
+            ),
           ),
         ],
       ),
@@ -166,11 +172,11 @@ class _GalleryState extends State<Gallery> {
               },
             ),
       bottomNavigationBar: Container(
-        height: 60,
+        height: 70,
         decoration: BoxDecoration(
-          color: const Color.fromARGB(255, 14, 66, 18).withOpacity(0.9),
+          color: AppTheme.surfaceColor,
           border: Border(
-            top: BorderSide(color: AppTheme.textColor.withOpacity(0.3)),
+            top: BorderSide(color: AppTheme.textColor.withOpacity(0.12)),
           ),
         ),
         child: Row(
@@ -183,7 +189,7 @@ class _GalleryState extends State<Gallery> {
                 onPressed: () {}, // Üres függvény most
                 child: Row(
                   children: [
-                    Icon(Icons.filter_alt, color: AppTheme.textColor),
+                    Icon(Icons.filter_alt, color: AppTheme.primaryColor),
                     const SizedBox(width: 8),
                     Text(
                       'Filter',
@@ -206,7 +212,7 @@ class _GalleryState extends State<Gallery> {
                 child: Text(
                   'My Map',
                   style: TextStyle(
-                    color: AppTheme.textColor,
+                    color: AppTheme.primaryColor,
                     fontFamily: AppTheme.fontFamily,
                     fontSize: 16,
                   ),
