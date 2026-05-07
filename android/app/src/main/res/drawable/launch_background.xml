@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Launch splash: solid blue background with centered app icon -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Solid blue background -->
+    <!-- Solid app-accent background (orange) -->
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="#0D47A1" />
+            <solid android:color="#FFF26522" />
         </shape>
     </item>
 
