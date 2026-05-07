@@ -143,16 +143,30 @@ class _SignupState extends State<Signup> {
                     children: [
                       TextField(
                         controller: name,
+                        style: TextStyle(
+                          color: AppTheme.textColor.withOpacity(0.95),
+                        ),
+                        cursorColor: AppTheme.textColor,
                         decoration: InputDecoration(
                           hintText: 'Név',
+                          hintStyle: TextStyle(
+                            color: AppTheme.textColor.withOpacity(0.6),
+                          ),
                           border: OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: email,
+                        style: TextStyle(
+                          color: AppTheme.textColor.withOpacity(0.95),
+                        ),
+                        cursorColor: AppTheme.textColor,
                         decoration: InputDecoration(
                           hintText: 'Email',
+                          hintStyle: TextStyle(
+                            color: AppTheme.textColor.withOpacity(0.6),
+                          ),
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.emailAddress,
@@ -160,8 +174,15 @@ class _SignupState extends State<Signup> {
                       const SizedBox(height: 12),
                       TextField(
                         controller: password,
+                        style: TextStyle(
+                          color: AppTheme.textColor.withOpacity(0.95),
+                        ),
+                        cursorColor: AppTheme.textColor,
                         decoration: InputDecoration(
                           hintText: 'Jelszó',
+                          hintStyle: TextStyle(
+                            color: AppTheme.textColor.withOpacity(0.6),
+                          ),
                           border: OutlineInputBorder(),
                         ),
                         obscureText: true,

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
+import 'package:login_fish_app/controllers/theme_controller.dart';
 
 class GlobalHeader extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
+    final ThemeController themeController = Get.find();
+
     return AppBar(
       backgroundColor: AppTheme.surfaceColor,
       centerTitle: true,
@@ -32,6 +36,20 @@ class GlobalHeader extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
       ),
+      actions: [
+        Obx(
+          () => IconButton(
+            icon: Icon(
+              themeController.isDark.value ? Icons.nights_stay : Icons.wb_sunny,
+              color: AppTheme.textColor,
+            ),
+            tooltip: themeController.isDark.value
+                ? 'Éjszakai mód'
+                : 'Nappali mód',
+            onPressed: () => themeController.toggle(),
+          ),
+        ),
+      ],
     );
   }
 

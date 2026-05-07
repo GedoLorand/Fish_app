@@ -3,6 +3,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:login_fish_app/backend-login/wrapper.dart';
 //import 'firebase_options.dart';
 import 'package:get/get.dart';
+import 'homepage/Initial/initialType.dart';
+import 'controllers/theme_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,11 +18,14 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+    // Put the theme controller into GetX
+    Get.put(ThemeController());
+
     return GetMaterialApp(
       title: 'Flutter Demo',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.theme,
+      themeMode: ThemeMode.dark,
       home: Wrapper(),
     );
   }

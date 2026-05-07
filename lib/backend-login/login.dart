@@ -108,8 +108,15 @@ class _LoginState extends State<Login> {
                     children: [
                       TextField(
                         controller: email,
+                        style: TextStyle(
+                          color: AppTheme.textColor.withOpacity(0.95),
+                        ),
+                        cursorColor: AppTheme.textColor,
                         decoration: InputDecoration(
                           hintText: 'Email',
+                          hintStyle: TextStyle(
+                            color: AppTheme.textColor.withOpacity(0.6),
+                          ),
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.emailAddress,
@@ -117,8 +124,15 @@ class _LoginState extends State<Login> {
                       const SizedBox(height: 12),
                       TextField(
                         controller: password,
+                        style: TextStyle(
+                          color: AppTheme.textColor.withOpacity(0.95),
+                        ),
+                        cursorColor: AppTheme.textColor,
                         decoration: InputDecoration(
                           hintText: 'Jelszó',
+                          hintStyle: TextStyle(
+                            color: AppTheme.textColor.withOpacity(0.6),
+                          ),
                           border: OutlineInputBorder(),
                         ),
                         obscureText: true,

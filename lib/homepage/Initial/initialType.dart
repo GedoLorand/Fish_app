@@ -41,4 +41,33 @@ class AppTheme {
       // Use cardColor / surfaceColor for bottom bars; keep theme minimal for SDK compatibility
     );
   }
+
+  // Light (day) theme variant using the same primary accent
+  static ThemeData get lightTheme {
+    return ThemeData(
+      brightness: Brightness.light,
+      primaryColor: primaryColor,
+      scaffoldBackgroundColor: Colors.white,
+      cardColor: const Color(0xFFF5F5F5),
+      dialogBackgroundColor: const Color(0xFFF5F5F5),
+      textTheme: TextTheme(
+        bodyLarge: TextStyle(color: Colors.black87, fontFamily: fontFamily),
+        bodyMedium: TextStyle(color: Colors.black87, fontFamily: fontFamily),
+        bodySmall: TextStyle(color: Colors.black87, fontFamily: fontFamily),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryColor,
+          foregroundColor: textColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          elevation: 6,
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: primaryColor),
+      ),
+    );
+  }
 }
