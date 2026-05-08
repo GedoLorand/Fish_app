@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,10 +7,12 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:login_fish_app/homepage/GalleryScreen/Gallery.dart';
+import 'package:login_fish_app/homepage/MapScreen/photo_marker.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -25,12 +28,36 @@ class _MapScreenState extends State<MapScreen> {
   bool _mapReady = false;
   File? _imageFile;
   bool _uploading = false;
+  // store photo entries (point + url + doc id) so we can build markers and
+  // look up entries when clusters are tapped
+  List<Map<String, dynamic>> _photoEntries = [];
+  late final StreamSubscription<QuerySnapshot> _imagesSub;
 
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
     _determinePosition();
+    // Listen for uploaded images (all users) and create a list of entries
+    _imagesSub = FirebaseFirestore.instance
+        .collectionGroup('images')
+        .snapshots()
+        .listen((snap) {
+          final List<Map<String, dynamic>> entries = [];
+          for (final doc in snap.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            // Convert stored GeoPoint to LatLng when present, otherwise keep null so
+            // we can optionally show a fallback marker for testing.
+            GeoPoint? gp = data['location'] as GeoPoint?;
+            LatLng? pt;
+            if (gp != null) {
+              pt = LatLng(gp.latitude, gp.longitude);
+            }
+            final url = data['url'] as String? ?? '';
+            entries.add({'point': pt, 'url': url, 'doc': data, 'id': doc.id});
+          }
+          setState(() => _photoEntries = entries);
+        });
   }
 
   Future<void> _determinePosition() async {
@@ -122,6 +149,17 @@ class _MapScreenState extends State<MapScreen> {
       final uploadTask = await ref.putFile(file);
       final url = await ref.getDownloadURL();
 
+      // Try to get current location to attach to the photo
+      GeoPoint? photoPoint;
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
+        photoPoint = GeoPoint(pos.latitude, pos.longitude);
+      } catch (_) {
+        // ignore location errors; leave photoPoint null
+      }
+
       final docData = <String, dynamic>{
         'url': url,
         'fileName': filename,
@@ -131,13 +169,34 @@ class _MapScreenState extends State<MapScreen> {
       if (metadata != null) {
         docData.addAll(metadata);
       }
+      if (photoPoint != null) {
+        docData['location'] = photoPoint;
+      }
 
       // Save metadata under /users/{uid}/images/{autoId} so it matches Firestore rules
-      await FirebaseFirestore.instance
+      final docRef = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .collection('images')
           .add(docData);
+
+      // Immediately append the new entry locally so the map updates without re-opening
+      final LatLng entryPoint = (photoPoint != null)
+          ? LatLng(photoPoint.latitude, photoPoint.longitude)
+          : _initialPosition;
+      final localDoc = Map<String, dynamic>.from(docData);
+      // Replace server timestamp with current local time for immediate UI
+      localDoc['createdAt'] = DateTime.now();
+      final newEntry = {
+        'point': entryPoint,
+        'url': url,
+        'doc': localDoc,
+        'id': docRef.id,
+      };
+      setState(() {
+        _photoEntries = List<Map<String, dynamic>>.from(_photoEntries)
+          ..add(newEntry);
+      });
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -283,21 +342,468 @@ class _MapScreenState extends State<MapScreen> {
                 subdomains: const ['a', 'b', 'c'],
                 userAgentPackageName: 'com.example.login_fish_app',
               ),
-              MarkerLayer(
-                markers: _locationLoaded
-                    ? [
-                        Marker(
-                          width: 40,
-                          height: 40,
-                          point: _initialPosition,
-                          child: const Icon(
-                            Icons.location_on,
-                            size: 40,
-                            color: Colors.red,
+              // Cluster layer for photo markers
+              MarkerClusterLayerWidget(
+                options: MarkerClusterLayerOptions(
+                  maxClusterRadius: 45,
+                  size: const Size(40, 40),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.all(50),
+                  markers: [
+                    if (_locationLoaded)
+                      Marker(
+                        width: 40,
+                        height: 40,
+                        point: _initialPosition,
+                        child: const Icon(
+                          Icons.location_on,
+                          size: 40,
+                          color: Colors.red,
+                        ),
+                      ),
+                    // build markers from entries
+                    ..._photoEntries.map((e) {
+                      final LatLng markerPoint =
+                          (e['point'] as LatLng?) ?? _initialPosition;
+                      // If the original doc lacked a location, we place a fallback marker
+                      // at the user's current known position so the icon is visible for testing.
+                      final bool hadLocation = (e['point'] as LatLng?) != null;
+                      return Marker(
+                        width: 44,
+                        height: 44,
+                        point: markerPoint,
+                        child: PhotoMarker(
+                          size: hadLocation ? 36 : 40,
+                          onTap: () => _showPhotoDialog(
+                            e['url'] as String,
+                            e['doc'] as Map<String, dynamic>,
                           ),
                         ),
-                      ]
-                    : [],
+                      );
+                    }).toList(),
+                  ],
+                  builder: (context, markers) {
+                    return GestureDetector(
+                      onTap: () {
+                        try {
+                          final clusterPoints = markers
+                              .map((m) => m.point)
+                              .toSet();
+                          final clusterEntries = _photoEntries.where((e) {
+                            final LatLng? p = e['point'] as LatLng?;
+                            return p != null && clusterPoints.contains(p);
+                          }).toList();
+                          // show the same draggable list as onClusterTap
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => DraggableScrollableSheet(
+                              initialChildSize: 0.75,
+                              minChildSize: 0.4,
+                              maxChildSize: 0.95,
+                              expand: false,
+                              builder: (context, scrollCtrl) {
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.surfaceColor,
+                                    borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(12),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.all(12.0),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'Képek a környéken (${clusterEntries.length})',
+                                              style: TextStyle(
+                                                color: AppTheme.textColor,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            IconButton(
+                                              icon: Icon(
+                                                Icons.close,
+                                                color: AppTheme.textColor,
+                                              ),
+                                              onPressed: () =>
+                                                  Navigator.of(context).pop(),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: ListView.builder(
+                                          controller: scrollCtrl,
+                                          itemCount: clusterEntries.length,
+                                          itemBuilder: (ctx, idx) {
+                                            final item = clusterEntries[idx];
+                                            final doc =
+                                                item['doc']
+                                                    as Map<String, dynamic>;
+                                            final url = item['url'] as String;
+                                            DateTime? dt;
+                                            final created = doc['createdAt'];
+                                            try {
+                                              if (created is Timestamp)
+                                                dt = created.toDate();
+                                              else if (created is String)
+                                                dt = DateTime.tryParse(created);
+                                            } catch (_) {}
+                                            final dateText = dt != null
+                                                ? dt
+                                                      .toLocal()
+                                                      .toString()
+                                                      .split('.')
+                                                      .first
+                                                : '';
+                                            return Card(
+                                              margin:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
+                                              color: AppTheme.surfaceColor,
+                                              child: InkWell(
+                                                onTap: () {
+                                                  Navigator.of(context).pop();
+                                                  _showPhotoDialog(url, doc);
+                                                },
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment
+                                                          .stretch,
+                                                  children: [
+                                                    ClipRRect(
+                                                      borderRadius:
+                                                          const BorderRadius.vertical(
+                                                            top:
+                                                                Radius.circular(
+                                                                  8,
+                                                                ),
+                                                          ),
+                                                      child: Image.network(
+                                                        url,
+                                                        width: double.infinity,
+                                                        height: 220,
+                                                        fit: BoxFit.cover,
+                                                      ),
+                                                    ),
+                                                    Padding(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            12.0,
+                                                          ),
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          if (doc['species'] !=
+                                                              null)
+                                                            Text(
+                                                              'Fajta: ${doc['species']}',
+                                                              style: TextStyle(
+                                                                color: AppTheme
+                                                                    .textColor,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                            ),
+                                                          if (doc['weight'] !=
+                                                              null)
+                                                            Padding(
+                                                              padding:
+                                                                  const EdgeInsets.only(
+                                                                    top: 6.0,
+                                                                  ),
+                                                              child: Text(
+                                                                'Súly: ${doc['weight']}',
+                                                                style: TextStyle(
+                                                                  color: AppTheme
+                                                                      .textColor,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          if (dateText
+                                                              .isNotEmpty)
+                                                            Padding(
+                                                              padding:
+                                                                  const EdgeInsets.only(
+                                                                    top: 6.0,
+                                                                  ),
+                                                              child: Text(
+                                                                dateText,
+                                                                style: TextStyle(
+                                                                  color: AppTheme
+                                                                      .textColor
+                                                                      .withOpacity(
+                                                                        0.8,
+                                                                      ),
+                                                                  fontSize: 12,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        } catch (_) {}
+                      },
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          // cluster icon from assets
+                          Image.asset(
+                            'assets/icon/in_map_icon.png',
+                            width: 56,
+                            height: 56,
+                            fit: BoxFit.contain,
+                            errorBuilder: (c, e, s) => Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ),
+                          // count badge (subtle)
+                          Positioned(
+                            right: -4,
+                            top: -4,
+                            child: Container(
+                              width: 20,
+                              height: 20,
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.9),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  markers.length.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  onClusterTap: (cluster) {
+                    // find matching entries by point
+                    final clusterPoints = cluster.markers
+                        .map((m) => m.point)
+                        .toSet();
+                    final clusterEntries = _photoEntries
+                        .where(
+                          (e) => clusterPoints.contains(e['point'] as LatLng),
+                        )
+                        .toList();
+                    // show a full, scrollable list so user can browse multiple catches without zooming
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (_) => DraggableScrollableSheet(
+                        initialChildSize: 0.75,
+                        minChildSize: 0.4,
+                        maxChildSize: 0.95,
+                        expand: false,
+                        builder: (context, scrollCtrl) {
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: AppTheme.surfaceColor,
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(12),
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Képek a környéken (${clusterEntries.length})',
+                                        style: TextStyle(
+                                          color: AppTheme.textColor,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: Icon(
+                                          Icons.close,
+                                          color: AppTheme.textColor,
+                                        ),
+                                        onPressed: () =>
+                                            Navigator.of(context).pop(),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Expanded(
+                                  child: ListView.builder(
+                                    controller: scrollCtrl,
+                                    itemCount: clusterEntries.length,
+                                    itemBuilder: (ctx, idx) {
+                                      final item = clusterEntries[idx];
+                                      final doc =
+                                          item['doc'] as Map<String, dynamic>;
+                                      final url = item['url'] as String;
+                                      DateTime? dt;
+                                      final created = doc['createdAt'];
+                                      try {
+                                        if (created is Timestamp)
+                                          dt = created.toDate();
+                                        else if (created is String)
+                                          dt = DateTime.tryParse(created);
+                                      } catch (_) {}
+                                      final dateText = dt != null
+                                          ? dt
+                                                .toLocal()
+                                                .toString()
+                                                .split('.')
+                                                .first
+                                          : '';
+                                      return Card(
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 8,
+                                        ),
+                                        color: AppTheme.surfaceColor,
+                                        child: InkWell(
+                                          onTap: () {
+                                            Navigator.of(context).pop();
+                                            _showPhotoDialog(url, doc);
+                                          },
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.stretch,
+                                            children: [
+                                              ClipRRect(
+                                                borderRadius:
+                                                    const BorderRadius.vertical(
+                                                      top: Radius.circular(8),
+                                                    ),
+                                                child: Image.network(
+                                                  url,
+                                                  width: double.infinity,
+                                                  height: 220,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                              ),
+                                              Padding(
+                                                padding: const EdgeInsets.all(
+                                                  12.0,
+                                                ),
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    if (doc['species'] != null)
+                                                      Text(
+                                                        'Fajta: ${doc['species']}',
+                                                        style: TextStyle(
+                                                          color: AppTheme
+                                                              .textColor,
+                                                          fontWeight:
+                                                              FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    if (doc['weight'] != null)
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets.only(
+                                                              top: 6.0,
+                                                            ),
+                                                        child: Text(
+                                                          'Súly: ${doc['weight']}',
+                                                          style: TextStyle(
+                                                            color: AppTheme
+                                                                .textColor,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    if (dateText.isNotEmpty)
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets.only(
+                                                              top: 6.0,
+                                                            ),
+                                                        child: Text(
+                                                          dateText,
+                                                          style: TextStyle(
+                                                            color: AppTheme
+                                                                .textColor
+                                                                .withOpacity(
+                                                                  0.8,
+                                                                ),
+                                                            fontSize: 12,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                  onMarkerTap: (marker) {
+                    try {
+                      final LatLng mp = marker.point;
+                      final match = _photoEntries.firstWhere((e) {
+                        final LatLng? p = e['point'] as LatLng?;
+                        return p != null &&
+                            p.latitude == mp.latitude &&
+                            p.longitude == mp.longitude;
+                      }, orElse: () => {});
+                      if (match is Map<String, dynamic>) {
+                        _showPhotoDialog(
+                          match['url'] as String,
+                          match['doc'] as Map<String, dynamic>,
+                        );
+                      }
+                    } catch (_) {}
+                  },
+                ),
               ),
             ],
           ),
@@ -355,6 +861,52 @@ class _MapScreenState extends State<MapScreen> {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+    );
+  }
+
+  @override
+  void dispose() {
+    try {
+      _imagesSub.cancel();
+    } catch (_) {}
+    super.dispose();
+  }
+
+  void _showPhotoDialog(String url, Map<String, dynamic> doc) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: AppTheme.surfaceColor,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.network(url, fit: BoxFit.cover),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                'Kép megtekintése',
+                style: TextStyle(color: AppTheme.textColor),
+              ),
+            ),
+            if (doc['species'] != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  'Fajta: ${doc['species']}',
+                  style: TextStyle(color: AppTheme.textColor),
+                ),
+              ),
+            if (doc['weight'] != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  'Súly: ${doc['weight']}',
+                  style: TextStyle(color: AppTheme.textColor),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
