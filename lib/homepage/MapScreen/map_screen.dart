@@ -1,10 +1,14 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
@@ -42,22 +46,26 @@ class _MapScreenState extends State<MapScreen> {
     _imagesSub = FirebaseFirestore.instance
         .collectionGroup('images')
         .snapshots()
-        .listen((snap) {
-          final List<Map<String, dynamic>> entries = [];
-          for (final doc in snap.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            // Convert stored GeoPoint to LatLng when present, otherwise keep null so
-            // we can optionally show a fallback marker for testing.
-            GeoPoint? gp = data['location'] as GeoPoint?;
-            LatLng? pt;
-            if (gp != null) {
-              pt = LatLng(gp.latitude, gp.longitude);
+        .listen(
+          (snap) {
+            final List<Map<String, dynamic>> entries = [];
+            for (final doc in snap.docs) {
+              final data = doc.data() as Map<String, dynamic>;
+              GeoPoint? gp = data['location'] as GeoPoint?;
+              LatLng? pt;
+              if (gp != null) {
+                pt = LatLng(gp.latitude, gp.longitude);
+              }
+              final url = data['url'] as String? ?? '';
+              entries.add({'point': pt, 'url': url, 'doc': data, 'id': doc.id});
             }
-            final url = data['url'] as String? ?? '';
-            entries.add({'point': pt, 'url': url, 'doc': data, 'id': doc.id});
-          }
-          setState(() => _photoEntries = entries);
-        });
+            setState(() => _photoEntries = entries);
+          },
+          onError: (e) {
+            // Log error but keep existing entries so map icons remain visible.
+            print('images subscription error: $e');
+          },
+        );
   }
 
   Future<void> _determinePosition() async {
@@ -115,15 +123,8 @@ class _MapScreenState extends State<MapScreen> {
       setState(() {
         _imageFile = File(photo.path);
       });
-      // Ask user for metadata (species, weight) and show the image in the dialog
-      final metadata = await _showMetadataDialog(_imageFile);
-      if (metadata == null) {
-        // user cancelled metadata entry
-        return;
-      }
-
-      // Start upload with metadata
-      await _uploadPhoto(_imageFile!, metadata: metadata);
+      // Start upload (metadata will be requested after server suggestions)
+      await _uploadPhoto(_imageFile!);
 
       // After upload we just show the snackbar (preview already visible in dialog)
     } catch (e) {
@@ -137,9 +138,26 @@ class _MapScreenState extends State<MapScreen> {
     });
     try {
       final user = FirebaseAuth.instance.currentUser;
+      // Debug: print current user so we can see auth state when uploading
+      // ignore: avoid_print
+      print(
+        'uploadPhoto: currentUser=' +
+            (user == null ? 'null' : '${user.uid} / ${user.email}'),
+      );
       if (user == null) throw Exception('User not signed in');
 
       final String uid = user.uid;
+      // Debug: get ID token so we can verify token exists client-side
+      String? debugIdToken;
+      try {
+        debugIdToken = await user.getIdToken();
+        final int idTokenLen = debugIdToken?.length ?? 0;
+        // ignore: avoid_print
+        print('debug: currentUser=${user.uid}, idToken length=$idTokenLen');
+      } catch (e) {
+        // ignore: avoid_print
+        print('debug: failed to get idToken: $e');
+      }
       final String filename = '${DateTime.now().millisecondsSinceEpoch}.jpg';
 
       // Store file under a user-scoped folder in Storage
@@ -148,6 +166,78 @@ class _MapScreenState extends State<MapScreen> {
       );
       final uploadTask = await ref.putFile(file);
       final url = await ref.getDownloadURL();
+
+      // DEBUG: directly invoke function via HTTP with ID token to test auth forwarding
+      if (debugIdToken != null) {
+        // ignore: avoid_print
+        print(
+          'debug: invoking HTTP with idToken length=${debugIdToken.length}',
+        );
+        await _debugInvokeFunctionViaHttp(url, debugIdToken);
+      } else {
+        // ignore: avoid_print
+        print('debug: no idToken available for HTTP invoke');
+      }
+
+      // Call server-side verification to check if image contains a fish
+      bool isFish = false;
+      String? serverError;
+      try {
+        final callable = FirebaseFunctions.instanceFor(
+          region: 'us-central1',
+        ).httpsCallable('analyzeImageForFish');
+        final res = await callable.call(<String, dynamic>{'imageUrl': url});
+        final Map data = Map<String, dynamic>.from(res.data as Map);
+        isFish = data['isFish'] == true;
+      } catch (e, st) {
+        // Capture server error to show to the user for debugging
+        serverError = e?.toString();
+        // Also print full stack for local debugging
+        // ignore: avoid_print
+        print('analyzeImageForFish error: $serverError\n$st');
+        isFish = false;
+      }
+
+      if (!isFish) {
+        // remove uploaded file since it's not acceptable
+        try {
+          await ref.delete();
+        } catch (_) {}
+        if (!mounted) return;
+        // If we have a server error, show it to help debugging; otherwise show generic message
+        if (serverError != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Szerverhiba: ${serverError}')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('A kép nem hal — feltöltés megszakítva.'),
+            ),
+          );
+        }
+        return;
+      }
+
+      // If it's a fish, open metadata dialog (user must input species manually)
+      Map<String, dynamic>? finalMetadata;
+      try {
+        finalMetadata = await _showMetadataDialog(_imageFile);
+      } catch (e) {
+        finalMetadata = null;
+      }
+
+      if (finalMetadata == null) {
+        // user cancelled metadata entry — delete uploaded image and stop
+        try {
+          await ref.delete();
+        } catch (_) {}
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Feltöltés megszakítva.')));
+        return;
+      }
 
       // Try to get current location to attach to the photo
       GeoPoint? photoPoint;
@@ -166,8 +256,19 @@ class _MapScreenState extends State<MapScreen> {
         'uid': uid,
         'createdAt': FieldValue.serverTimestamp(),
       };
+      // Use provided species from finalMetadata or fallback to generic 'hal'
+      String speciesValue = 'hal';
+      if (finalMetadata != null &&
+          finalMetadata.containsKey('species') &&
+          (finalMetadata['species'] as String).trim().isNotEmpty) {
+        speciesValue = finalMetadata['species'] as String;
+      }
+      docData['species'] = speciesValue;
       if (metadata != null) {
-        docData.addAll(metadata);
+        // keep weight or other metadata but override species
+        final copy = Map<String, dynamic>.from(metadata);
+        copy.remove('species');
+        docData.addAll(copy);
       }
       if (photoPoint != null) {
         docData['location'] = photoPoint;
@@ -179,6 +280,8 @@ class _MapScreenState extends State<MapScreen> {
           .doc(uid)
           .collection('images')
           .add(docData);
+
+      // (No automatic suggestion collection — user-entered species is authoritative)
 
       // Immediately append the new entry locally so the map updates without re-opening
       final LatLng entryPoint = (photoPoint != null)
@@ -211,6 +314,35 @@ class _MapScreenState extends State<MapScreen> {
       setState(() {
         _uploading = false;
       });
+    }
+  }
+
+  // Optional debug helper: invoke the deployed function directly with an ID token.
+  // WARNING: only use for debugging. Keep commented out in production.
+  Future<void> _debugInvokeFunctionViaHttp(
+    String imageUrl,
+    String idToken,
+  ) async {
+    try {
+      final uri = Uri.parse(
+        'https://us-central1-fish-app-release.cloudfunctions.net/analyzeImageForFish',
+      );
+      final body = {
+        'data': {'imageUrl': imageUrl},
+      };
+      final resp = await http.post(
+        uri,
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+      // ignore: avoid_print
+      print('debug HTTP invoke status=${resp.statusCode}, body=${resp.body}');
+    } catch (e) {
+      // ignore: avoid_print
+      print('debug HTTP invoke failed: $e');
     }
   }
 
@@ -257,6 +389,7 @@ class _MapScreenState extends State<MapScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // No automatic suggestions — user must enter species manually
                       TextFormField(
                         controller: speciesCtrl,
                         decoration: const InputDecoration(labelText: 'Fajta'),
@@ -487,11 +620,44 @@ class _MapScreenState extends State<MapScreen> {
                                                                   8,
                                                                 ),
                                                           ),
-                                                      child: Image.network(
-                                                        url,
+                                                      child: CachedNetworkImage(
+                                                        imageUrl: url,
                                                         width: double.infinity,
                                                         height: 220,
                                                         fit: BoxFit.cover,
+                                                        placeholder: (c, u) =>
+                                                            Container(
+                                                              width: double
+                                                                  .infinity,
+                                                              height: 220,
+                                                              color: Colors
+                                                                  .grey
+                                                                  .shade300,
+                                                              child: const Center(
+                                                                child:
+                                                                    CircularProgressIndicator(
+                                                                      strokeWidth:
+                                                                          2.0,
+                                                                    ),
+                                                              ),
+                                                            ),
+                                                        errorWidget:
+                                                            (
+                                                              c,
+                                                              u,
+                                                              e,
+                                                            ) => Container(
+                                                              width: double
+                                                                  .infinity,
+                                                              height: 220,
+                                                              color: Colors
+                                                                  .grey
+                                                                  .shade300,
+                                                              child: const Icon(
+                                                                Icons
+                                                                    .broken_image,
+                                                              ),
+                                                            ),
                                                       ),
                                                     ),
                                                     Padding(
@@ -712,11 +878,33 @@ class _MapScreenState extends State<MapScreen> {
                                                     const BorderRadius.vertical(
                                                       top: Radius.circular(8),
                                                     ),
-                                                child: Image.network(
-                                                  url,
+                                                child: CachedNetworkImage(
+                                                  imageUrl: url,
                                                   width: double.infinity,
                                                   height: 220,
                                                   fit: BoxFit.cover,
+                                                  placeholder: (c, u) => Container(
+                                                    width: double.infinity,
+                                                    height: 220,
+                                                    color: Colors.grey.shade300,
+                                                    child: const Center(
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2.0,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  errorWidget: (c, u, e) =>
+                                                      Container(
+                                                        width: double.infinity,
+                                                        height: 220,
+                                                        color: Colors
+                                                            .grey
+                                                            .shade300,
+                                                        child: const Icon(
+                                                          Icons.broken_image,
+                                                        ),
+                                                      ),
                                                 ),
                                               ),
                                               Padding(
@@ -827,6 +1015,7 @@ class _MapScreenState extends State<MapScreen> {
             right: 16,
             child: SafeArea(
               child: FloatingActionButton(
+                heroTag: 'gallery_fab',
                 mini: true,
                 backgroundColor: const Color.fromARGB(255, 14, 66, 18),
                 onPressed: () {
@@ -849,6 +1038,7 @@ class _MapScreenState extends State<MapScreen> {
           width: 68,
           height: 68,
           child: FloatingActionButton(
+            heroTag: 'camera_fab',
             backgroundColor: const Color.fromARGB(255, 14, 66, 18),
             elevation: 8,
             child: const Icon(
@@ -880,7 +1070,24 @@ class _MapScreenState extends State<MapScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.network(url, fit: BoxFit.cover),
+            CachedNetworkImage(
+              imageUrl: url,
+              fit: BoxFit.cover,
+              placeholder: (c, u) => Container(
+                width: double.infinity,
+                height: 220,
+                color: Colors.grey.shade300,
+                child: const Center(
+                  child: CircularProgressIndicator(strokeWidth: 2.0),
+                ),
+              ),
+              errorWidget: (c, u, e) => Container(
+                width: double.infinity,
+                height: 220,
+                color: Colors.grey.shade300,
+                child: const Icon(Icons.broken_image),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Text(

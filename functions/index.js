@@ -81,13 +81,113 @@ exports.analyzeImageForFish = functions.https.onCall(async (data, context) => {
 
   try {
     const apiResp = await performVisionDetection({ imageUrl, imageBase64 });
+
     // Detect fish keywords in labels/raw
-    const fishRegex = /fish|salmon|trout|carp|bass|cod|perch|tilapia|pike|mackerel/i;
+    const fishRegex = /fish|salmon|trout|carp|bass|cod|perch|tilapia|pike|mackerel|catfish|herring|sardine/i;
     const combinedText = apiResp.labels.map(l => l.description).join(' ').toLowerCase() + ' ' + JSON.stringify(apiResp.raw).toLowerCase();
     const isFish = fishRegex.test(combinedText);
-    return { isFish, labels: apiResp.labels, raw: apiResp.raw };
+
+    const result = { isFish, labels: apiResp.labels, raw: apiResp.raw };
+
+    // Persist detection result to Firestore so the client (uploader) can read later
+    try {
+      const db = admin.firestore();
+      let docId = null;
+      if (imageUrl && imageUrl.startsWith('gs://')) {
+        const without = imageUrl.replace('gs://', '');
+        docId = without.replace(/\//g, '__');
+      } else if (imageUrl) {
+        // use URL-encoded key
+        docId = encodeURIComponent(imageUrl).slice(0, 150);
+      } else {
+        docId = `img_${Date.now()}`;
+      }
+      await db.collection('imageDetections').doc(docId).set({
+        imageUrl: imageUrl || null,
+        isFish: result.isFish,
+        labels: result.labels,
+        raw: result.raw,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      console.log('Wrote detection result to imageDetections/', docId);
+    } catch (e) {
+      console.warn('Failed to persist detection result to Firestore:', e && e.message || e);
+    }
+
+    return result;
   } catch (err) {
     console.error('Vision detection error:', err && (err.stack || err.message) || err);
     throw new functions.https.HttpsError('internal', `Detection API error: ${err && (err.message || err)}`);
+  }
+});
+
+// Storage trigger: generate a small thumbnail for uploaded images.
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
+let sharp;
+try {
+  sharp = require('sharp');
+} catch (e) {
+  console.warn('sharp not available:', e && e.message || e);
+}
+
+exports.generateThumbnail = functions.storage.object().onFinalize(async (object) => {
+  // Only process image files.
+  const contentType = object.contentType || '';
+  if (!contentType.startsWith('image/')) {
+    console.log('Not an image, skipping thumbnail generation:', object.name);
+    return null;
+  }
+
+  // Avoid processing already-generated thumbnails (we'll prefix with 'thumb_')
+  const filePath = object.name; // e.g. user_images/uid/123.jpg
+  if (!filePath) return null;
+  const fileName = path.basename(filePath);
+  if (fileName.startsWith('thumb_')) {
+    console.log('Already a thumbnail, skipping:', filePath);
+    return null;
+  }
+
+  if (!sharp) {
+    console.warn('sharp not installed; thumbnail generation skipped');
+    return null;
+  }
+
+  const bucket = admin.storage().bucket(object.bucket);
+  const tempDir = os.tmpdir();
+  const tempFilePath = path.join(tempDir, fileName);
+  const thumbFileName = 'thumb_' + fileName;
+  const thumbFilePath = path.join(path.dirname(filePath), thumbFileName);
+
+  try {
+    // Download original image
+    await bucket.file(filePath).download({ destination: tempFilePath });
+    console.log('Downloaded original image to', tempFilePath);
+
+    // Resize using sharp
+    const thumbBuffer = await sharp(tempFilePath)
+      .resize({ width: 400, withoutEnlargement: true })
+      .jpeg({ quality: 70 })
+      .toBuffer();
+
+    // Write the thumbnail to temp file then upload
+    const tempThumbPath = path.join(tempDir, thumbFileName);
+    fs.writeFileSync(tempThumbPath, thumbBuffer);
+
+    await bucket.upload(tempThumbPath, {
+      destination: thumbFilePath,
+      metadata: { contentType: 'image/jpeg' },
+    });
+    console.log('Uploaded thumbnail to', thumbFilePath);
+
+    // Cleanup temp files
+    try { fs.unlinkSync(tempFilePath); } catch (_) {}
+    try { fs.unlinkSync(tempThumbPath); } catch (_) {}
+    return null;
+  } catch (err) {
+    console.error('Thumbnail generation failed for', filePath, err && (err.stack || err.message) || err);
+    try { fs.unlinkSync(tempFilePath); } catch (_) {}
+    return null;
   }
 });

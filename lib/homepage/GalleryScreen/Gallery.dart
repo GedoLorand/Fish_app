@@ -4,6 +4,7 @@ import 'package:login_fish_app/homepage/Header/custom_drawer.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class Gallery extends StatefulWidget {
   const Gallery({super.key});
@@ -153,15 +154,15 @@ class _GalleryState extends State<Gallery> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: url != null
-                              ? Image.network(
-                                  url,
+                              ? CachedNetworkImage(
+                                  imageUrl: url,
                                   fit: BoxFit.cover,
-                                  loadingBuilder: (context, child, progress) {
-                                    if (progress == null) return child;
-                                    return const Center(
-                                      child: CircularProgressIndicator(),
-                                    );
-                                  },
+                                  placeholder: (c, u) => const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                  errorWidget: (c, u, e) => const Center(
+                                    child: Icon(Icons.broken_image),
+                                  ),
                                 )
                               : const Center(child: Text('Nincs kép')),
                         ),

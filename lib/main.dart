@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:login_fish_app/backend-login/wrapper.dart';
 //import 'firebase_options.dart';
 import 'package:get/get.dart';
@@ -9,6 +10,18 @@ import 'controllers/theme_controller.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  // If you were using the local Functions emulator, set `useFunctionsEmulator`
+  // to true and update `functionsEmulatorHost` to your PC's LAN IP.
+  // Currently we disable emulator usage so the app calls the deployed cloud function.
+  const useFunctionsEmulator = false;
+  const functionsEmulatorHost = '192.168.1.42';
+  const functionsEmulatorPort = 5001;
+  if (useFunctionsEmulator) {
+    FirebaseFunctions.instance.useFunctionsEmulator(
+      functionsEmulatorHost,
+      functionsEmulatorPort,
+    );
+  }
   runApp(const MyApp());
 }
 
