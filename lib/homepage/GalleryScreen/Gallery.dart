@@ -5,6 +5,7 @@ import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
 
 class Gallery extends StatefulWidget {
   const Gallery({super.key});
@@ -48,68 +49,7 @@ class _GalleryState extends State<Gallery> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        title: const Text(
-          'Kép részletei',
-          style: TextStyle(color: AppTheme.textColor),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (url != null)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8.0),
-                  child: Image.network(url, height: 220, fit: BoxFit.cover),
-                ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Text(
-                    'Fajta: ',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Expanded(child: Text(species.toString())),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Text(
-                    'Súly: ',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Expanded(child: Text(weight.toString())),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Text(
-                    'Feltöltés: ',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  Expanded(
-                    child: Text(
-                      createdAt != null ? createdAt.toLocal().toString() : '-',
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              'Bezár',
-              style: TextStyle(color: AppTheme.primaryColor),
-            ),
-          ),
-        ],
-      ),
+      builder: (context) => PhotoDetailDialog(url: url, doc: data),
     );
   }
 

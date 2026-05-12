@@ -16,6 +16,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:login_fish_app/homepage/GalleryScreen/Gallery.dart';
+import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
 import 'package:login_fish_app/homepage/MapScreen/photo_marker.dart';
 
 class MapScreen extends StatefulWidget {
@@ -1065,55 +1066,7 @@ class _MapScreenState extends State<MapScreen> {
   void _showPhotoDialog(String url, Map<String, dynamic> doc) {
     showDialog(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: AppTheme.surfaceColor,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CachedNetworkImage(
-              imageUrl: url,
-              fit: BoxFit.cover,
-              placeholder: (c, u) => Container(
-                width: double.infinity,
-                height: 220,
-                color: Colors.grey.shade300,
-                child: const Center(
-                  child: CircularProgressIndicator(strokeWidth: 2.0),
-                ),
-              ),
-              errorWidget: (c, u, e) => Container(
-                width: double.infinity,
-                height: 220,
-                color: Colors.grey.shade300,
-                child: const Icon(Icons.broken_image),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Text(
-                'Kép megtekintése',
-                style: TextStyle(color: AppTheme.textColor),
-              ),
-            ),
-            if (doc['species'] != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text(
-                  'Fajta: ${doc['species']}',
-                  style: TextStyle(color: AppTheme.textColor),
-                ),
-              ),
-            if (doc['weight'] != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Text(
-                  'Súly: ${doc['weight']}',
-                  style: TextStyle(color: AppTheme.textColor),
-                ),
-              ),
-          ],
-        ),
-      ),
+      builder: (_) => PhotoDetailDialog(url: url, doc: doc),
     );
   }
 }
