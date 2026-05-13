@@ -15,11 +15,33 @@ class PhotoDetailDialog extends StatelessWidget {
     final mq = MediaQuery.of(context);
     final maxHeight = mq.size.height * 0.9;
 
-    // build list of detail entries excluding common storage fields
+    // build ordered list of detail entries excluding common storage fields
     final details = <MapEntry<String, dynamic>>[];
     if (doc != null) {
+      final order = [
+        'species',
+        'weight',
+        'bait',
+        'feed',
+        'waterTemp',
+        'oxygen',
+        'notes',
+      ];
+      for (final k in order) {
+        if (doc!.containsKey(k) && doc![k] != null) {
+          details.add(MapEntry(k, doc![k]));
+        }
+      }
+      // append any other fields that are not in the ordered list
       doc!.forEach((k, v) {
-        if (k == 'url' || k == 'createdAt' || k == 'point') return;
+        if (k == 'url' ||
+            k == 'createdAt' ||
+            k == 'point' ||
+            k == 'fileName' ||
+            k == 'uid' ||
+            k == 'location')
+          return;
+        if (order.contains(k)) return;
         if (v == null) return;
         details.add(MapEntry(k, v));
       });
@@ -83,20 +105,13 @@ class PhotoDetailDialog extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Kép megtekintése',
-                            style: TextStyle(
-                              color: AppTheme.textColor,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
+                          // header removed per UX request
                           // render all available details dynamically
                           for (final e in details)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 6.0),
                               child: Text(
-                                '${_labelForKey(e.key)}: ${e.value}',
+                                '${_labelForKey(e.key)}: ${_displayValueForKey(e.key, e.value)}',
                                 style: TextStyle(color: AppTheme.textColor),
                               ),
                             ),
@@ -130,19 +145,43 @@ class PhotoDetailDialog extends StatelessWidget {
       case 'species':
         return 'Fajta';
       case 'weight':
-        return 'Súly';
+        return 'Tömeg';
+      case 'notes':
+        return 'Leírás';
       case 'description':
         return 'Leírás';
+      case 'feed':
+        return 'Etető';
+      case 'oxygen':
+        return 'Oxigén tartalom';
       case 'bait':
         return 'Csali';
       case 'waterTemp':
-        return 'Víz hőm.';
+        return 'Víz hőmérséklet';
       default:
         // convert camelCase / snake_case to spaced label
         return key
             .replaceAllMapped(RegExp(r'([A-Z])'), (m) => ' ${m[0]}')
             .replaceAll('_', ' ')
             .replaceFirst(key[0], key[0].toUpperCase());
+    }
+  }
+
+  String _displayValueForKey(String key, dynamic value) {
+    if (value == null) return '-';
+    switch (key) {
+      case 'weight':
+        double? v;
+        if (value is num)
+          v = value.toDouble();
+        else if (value is String)
+          v = double.tryParse(value.replaceAll(',', '.'));
+        if (v == null) return value.toString();
+        return '${v.toStringAsFixed(3)} kg';
+      case 'waterTemp':
+        return '${value.toString()}°C';
+      default:
+        return value.toString();
     }
   }
 }

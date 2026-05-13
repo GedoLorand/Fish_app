@@ -14,10 +14,23 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:login_fish_app/homepage/MapScreen/metadata_dialog.dart';
+import 'package:login_fish_app/homepage/MapScreen/cluster_sheet.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:login_fish_app/homepage/GalleryScreen/Gallery.dart';
 import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
 import 'package:login_fish_app/homepage/MapScreen/photo_marker.dart';
+
+String _formatWeight(dynamic w) {
+  if (w == null) return '-';
+  double? v;
+  if (w is num)
+    v = w.toDouble();
+  else if (w is String)
+    v = double.tryParse(w.replaceAll(',', '.'));
+  if (v == null) return w.toString();
+  return v.toStringAsFixed(3);
+}
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -192,7 +205,7 @@ class _MapScreenState extends State<MapScreen> {
         isFish = data['isFish'] == true;
       } catch (e, st) {
         // Capture server error to show to the user for debugging
-        serverError = e?.toString();
+        serverError = e.toString();
         // Also print full stack for local debugging
         // ignore: avoid_print
         print('analyzeImageForFish error: $serverError\n$st');
@@ -223,7 +236,7 @@ class _MapScreenState extends State<MapScreen> {
       // If it's a fish, open metadata dialog (user must input species manually)
       Map<String, dynamic>? finalMetadata;
       try {
-        finalMetadata = await _showMetadataDialog(_imageFile);
+        finalMetadata = await showMetadataDialog(context, _imageFile);
       } catch (e) {
         finalMetadata = null;
       }
@@ -253,8 +266,6 @@ class _MapScreenState extends State<MapScreen> {
 
       final docData = <String, dynamic>{
         'url': url,
-        'fileName': filename,
-        'uid': uid,
         'createdAt': FieldValue.serverTimestamp(),
       };
       // Use provided species from finalMetadata or fallback to generic 'hal'
@@ -265,15 +276,24 @@ class _MapScreenState extends State<MapScreen> {
         speciesValue = finalMetadata['species'] as String;
       }
       docData['species'] = speciesValue;
+      // Merge any metadata passed programmatically first
       if (metadata != null) {
-        // keep weight or other metadata but override species
         final copy = Map<String, dynamic>.from(metadata);
         copy.remove('species');
         docData.addAll(copy);
       }
-      if (photoPoint != null) {
-        docData['location'] = photoPoint;
+      // Merge values entered in the dialog (finalMetadata) so they take precedence
+      if (finalMetadata != null) {
+        final copy2 = Map<String, dynamic>.from(finalMetadata);
+        copy2.remove('species');
+        // If weight provided, ensure it's stored under 'weight'
+        if (copy2.containsKey('weight')) {
+          docData['weight'] = copy2['weight'];
+          copy2.remove('weight');
+        }
+        docData.addAll(copy2);
       }
+      // location is not stored per user request
 
       // Save metadata under /users/{uid}/images/{autoId} so it matches Firestore rules
       final docRef = await FirebaseFirestore.instance
@@ -347,106 +367,6 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  Future<Map<String, dynamic>?> _showMetadataDialog(File? image) async {
-    final _formKey = GlobalKey<FormState>();
-    final TextEditingController speciesCtrl = TextEditingController();
-    final TextEditingController weightCtrl = TextEditingController();
-
-    return showDialog<Map<String, dynamic>>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFFE8F5E9), // light green background
-          title: const Text('Kép adatai'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (image != null)
-                  Container(
-                    height: 160,
-                    margin: const EdgeInsets.only(bottom: 12.0),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFB9F6CA), Color(0xFF69F0AE)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8.0),
-                      child: Image.file(
-                        image,
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: double.infinity,
-                      ),
-                    ),
-                  ),
-                Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // No automatic suggestions — user must enter species manually
-                      TextFormField(
-                        controller: speciesCtrl,
-                        decoration: const InputDecoration(labelText: 'Fajta'),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Kötelező' : null,
-                      ),
-                      TextFormField(
-                        controller: weightCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Súly (kg)',
-                        ),
-                        keyboardType: TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
-                        validator: (v) =>
-                            (v == null || v.trim().isEmpty) ? 'Kötelező' : null,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(null),
-              child: const Text('Mégse'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color.fromARGB(255, 14, 66, 18),
-              ),
-              onPressed: () {
-                if (_formKey.currentState?.validate() ?? false) {
-                  double? weight;
-                  final wText = weightCtrl.text.trim();
-                  try {
-                    weight = double.parse(wText.replaceAll(',', '.'));
-                  } catch (_) {
-                    weight = null;
-                  }
-                  final data = <String, dynamic>{
-                    'species': speciesCtrl.text.trim(),
-                    'weight': weight ?? weightCtrl.text.trim(),
-                  };
-                  Navigator.of(context).pop(data);
-                }
-              },
-              child: const Text('Mentés'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   // FlutterMap nem igényel külön controller beállítást itt
 
   @override
@@ -518,7 +438,7 @@ class _MapScreenState extends State<MapScreen> {
                   ],
                   builder: (context, markers) {
                     return GestureDetector(
-                      onTap: () {
+                      onTap: () async {
                         try {
                           final clusterPoints = markers
                               .map((m) => m.point)
@@ -527,210 +447,12 @@ class _MapScreenState extends State<MapScreen> {
                             final LatLng? p = e['point'] as LatLng?;
                             return p != null && clusterPoints.contains(p);
                           }).toList();
-                          // show the same draggable list as onClusterTap
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (_) => DraggableScrollableSheet(
-                              initialChildSize: 0.75,
-                              minChildSize: 0.4,
-                              maxChildSize: 0.95,
-                              expand: false,
-                              builder: (context, scrollCtrl) {
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.surfaceColor,
-                                    borderRadius: const BorderRadius.vertical(
-                                      top: Radius.circular(12),
-                                    ),
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      Padding(
-                                        padding: const EdgeInsets.all(12.0),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            Text(
-                                              'Képek a környéken (${clusterEntries.length})',
-                                              style: TextStyle(
-                                                color: AppTheme.textColor,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                            IconButton(
-                                              icon: Icon(
-                                                Icons.close,
-                                                color: AppTheme.textColor,
-                                              ),
-                                              onPressed: () =>
-                                                  Navigator.of(context).pop(),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: ListView.builder(
-                                          controller: scrollCtrl,
-                                          itemCount: clusterEntries.length,
-                                          itemBuilder: (ctx, idx) {
-                                            final item = clusterEntries[idx];
-                                            final doc =
-                                                item['doc']
-                                                    as Map<String, dynamic>;
-                                            final url = item['url'] as String;
-                                            DateTime? dt;
-                                            final created = doc['createdAt'];
-                                            try {
-                                              if (created is Timestamp)
-                                                dt = created.toDate();
-                                              else if (created is String)
-                                                dt = DateTime.tryParse(created);
-                                            } catch (_) {}
-                                            final dateText = dt != null
-                                                ? dt
-                                                      .toLocal()
-                                                      .toString()
-                                                      .split('.')
-                                                      .first
-                                                : '';
-                                            return Card(
-                                              margin:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 8,
-                                                  ),
-                                              color: AppTheme.surfaceColor,
-                                              child: InkWell(
-                                                onTap: () {
-                                                  Navigator.of(context).pop();
-                                                  _showPhotoDialog(url, doc);
-                                                },
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment
-                                                          .stretch,
-                                                  children: [
-                                                    ClipRRect(
-                                                      borderRadius:
-                                                          const BorderRadius.vertical(
-                                                            top:
-                                                                Radius.circular(
-                                                                  8,
-                                                                ),
-                                                          ),
-                                                      child: CachedNetworkImage(
-                                                        imageUrl: url,
-                                                        width: double.infinity,
-                                                        height: 220,
-                                                        fit: BoxFit.cover,
-                                                        placeholder: (c, u) =>
-                                                            Container(
-                                                              width: double
-                                                                  .infinity,
-                                                              height: 220,
-                                                              color: Colors
-                                                                  .grey
-                                                                  .shade300,
-                                                              child: const Center(
-                                                                child:
-                                                                    CircularProgressIndicator(
-                                                                      strokeWidth:
-                                                                          2.0,
-                                                                    ),
-                                                              ),
-                                                            ),
-                                                        errorWidget:
-                                                            (
-                                                              c,
-                                                              u,
-                                                              e,
-                                                            ) => Container(
-                                                              width: double
-                                                                  .infinity,
-                                                              height: 220,
-                                                              color: Colors
-                                                                  .grey
-                                                                  .shade300,
-                                                              child: const Icon(
-                                                                Icons
-                                                                    .broken_image,
-                                                              ),
-                                                            ),
-                                                      ),
-                                                    ),
-                                                    Padding(
-                                                      padding:
-                                                          const EdgeInsets.all(
-                                                            12.0,
-                                                          ),
-                                                      child: Column(
-                                                        crossAxisAlignment:
-                                                            CrossAxisAlignment
-                                                                .start,
-                                                        children: [
-                                                          if (doc['species'] !=
-                                                              null)
-                                                            Text(
-                                                              'Fajta: ${doc['species']}',
-                                                              style: TextStyle(
-                                                                color: AppTheme
-                                                                    .textColor,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                              ),
-                                                            ),
-                                                          if (doc['weight'] !=
-                                                              null)
-                                                            Padding(
-                                                              padding:
-                                                                  const EdgeInsets.only(
-                                                                    top: 6.0,
-                                                                  ),
-                                                              child: Text(
-                                                                'Súly: ${doc['weight']}',
-                                                                style: TextStyle(
-                                                                  color: AppTheme
-                                                                      .textColor,
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          if (dateText
-                                                              .isNotEmpty)
-                                                            Padding(
-                                                              padding:
-                                                                  const EdgeInsets.only(
-                                                                    top: 6.0,
-                                                                  ),
-                                                              child: Text(
-                                                                dateText,
-                                                                style: TextStyle(
-                                                                  color: AppTheme
-                                                                      .textColor
-                                                                      .withOpacity(
-                                                                        0.8,
-                                                                      ),
-                                                                  fontSize: 12,
-                                                                ),
-                                                              ),
-                                                            ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
+                          await showClusterEntries(
+                            context,
+                            clusterEntries,
+                            (entry) => _showPhotoDialog(
+                              entry['url'] as String,
+                              entry['doc'] as Map<String, dynamic>,
                             ),
                           );
                         } catch (_) {}
@@ -933,7 +655,7 @@ class _MapScreenState extends State<MapScreen> {
                                                               top: 6.0,
                                                             ),
                                                         child: Text(
-                                                          'Súly: ${doc['weight']}',
+                                                          'Tömeg: ${_formatWeight(doc['weight'])} kg',
                                                           style: TextStyle(
                                                             color: AppTheme
                                                                 .textColor,
