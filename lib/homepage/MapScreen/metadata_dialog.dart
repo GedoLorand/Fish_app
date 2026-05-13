@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:login_fish_app/homepage/Initial/initialType.dart';
 
 Future<Map<String, dynamic>?> showMetadataDialog(
   BuildContext context,
@@ -19,8 +20,8 @@ Future<Map<String, dynamic>?> showMetadataDialog(
     barrierDismissible: false,
     builder: (context) {
       return AlertDialog(
-        backgroundColor: const Color(0xFFE8F5E9),
-        title: const Text('Kép adatai'),
+        backgroundColor: AppTheme.surfaceColor,
+        title: Text('Kép adatai', style: TextStyle(color: AppTheme.textColor)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -30,12 +31,12 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                   height: 160,
                   margin: const EdgeInsets.only(bottom: 12.0),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFB9F6CA), Color(0xFF69F0AE)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    color: AppTheme.surfaceColor,
                     borderRadius: BorderRadius.circular(8.0),
+                    border: Border.all(
+                      color: AppTheme.primaryColor,
+                      width: 1.5,
+                    ),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8.0),
@@ -54,14 +55,24 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                   children: [
                     TextFormField(
                       controller: speciesCtrl,
-                      decoration: const InputDecoration(labelText: 'Fajta'),
+                      style: TextStyle(color: AppTheme.textColor),
+                      decoration: InputDecoration(
+                        labelText: 'Fajta',
+                        labelStyle: TextStyle(
+                          color: AppTheme.textColor.withOpacity(0.85),
+                        ),
+                      ),
                       validator: (v) =>
                           (v == null || v.trim().isEmpty) ? 'Kötelező' : null,
                     ),
                     TextFormField(
                       controller: weightCtrl,
-                      decoration: const InputDecoration(
+                      style: TextStyle(color: AppTheme.textColor),
+                      decoration: InputDecoration(
                         labelText: 'Tömeg (kg)',
+                        labelStyle: TextStyle(
+                          color: AppTheme.textColor.withOpacity(0.85),
+                        ),
                       ),
                       keyboardType: TextInputType.numberWithOptions(
                         decimal: true,
@@ -75,18 +86,32 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                       children: [
                         TextFormField(
                           controller: baitCtrl,
-                          decoration: const InputDecoration(labelText: 'Csali'),
+                          style: TextStyle(color: AppTheme.textColor),
+                          decoration: InputDecoration(
+                            labelText: 'Csali',
+                            labelStyle: TextStyle(
+                              color: AppTheme.textColor.withOpacity(0.85),
+                            ),
+                          ),
                         ),
                         TextFormField(
                           controller: feedCtrl,
-                          decoration: const InputDecoration(
-                            labelText: 'Etetőanyag',
+                          style: TextStyle(color: AppTheme.textColor),
+                          decoration: InputDecoration(
+                            labelText: 'Etető',
+                            labelStyle: TextStyle(
+                              color: AppTheme.textColor.withOpacity(0.85),
+                            ),
                           ),
                         ),
                         TextFormField(
                           controller: tempCtrl,
-                          decoration: const InputDecoration(
+                          style: TextStyle(color: AppTheme.textColor),
+                          decoration: InputDecoration(
                             labelText: 'Víz hőmérséklet (°C)',
+                            labelStyle: TextStyle(
+                              color: AppTheme.textColor.withOpacity(0.85),
+                            ),
                           ),
                           keyboardType: TextInputType.numberWithOptions(
                             decimal: true,
@@ -94,8 +119,12 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                         ),
                         TextFormField(
                           controller: oxygenCtrl,
-                          decoration: const InputDecoration(
+                          style: TextStyle(color: AppTheme.textColor),
+                          decoration: InputDecoration(
                             labelText: 'Oxigén tartalom (mg/L)',
+                            labelStyle: TextStyle(
+                              color: AppTheme.textColor.withOpacity(0.85),
+                            ),
                           ),
                           keyboardType: TextInputType.numberWithOptions(
                             decimal: true,
@@ -103,8 +132,12 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                         ),
                         TextFormField(
                           controller: notesCtrl,
-                          decoration: const InputDecoration(
+                          style: TextStyle(color: AppTheme.textColor),
+                          decoration: InputDecoration(
                             labelText: 'Leírás',
+                            labelStyle: TextStyle(
+                              color: AppTheme.textColor.withOpacity(0.85),
+                            ),
                           ),
                           maxLines: 3,
                         ),
@@ -123,7 +156,9 @@ Future<Map<String, dynamic>?> showMetadataDialog(
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color.fromARGB(255, 14, 66, 18),
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
             ),
             onPressed: () {
               if (_formKey.currentState?.validate() ?? false) {
