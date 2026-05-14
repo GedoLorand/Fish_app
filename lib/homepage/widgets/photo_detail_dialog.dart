@@ -105,6 +105,23 @@ class PhotoDetailDialog extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Show uploader name prominently if available
+                          if (doc != null &&
+                              doc!['uploaderName'] != null &&
+                              (doc!['uploaderName'] as String)
+                                  .trim()
+                                  .isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Text(
+                                'Feltöltő: ${doc!['uploaderName']}',
+                                style: TextStyle(
+                                  color: AppTheme.textColor,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
                           // header removed per UX request
                           // render all available details dynamically
                           for (final e in details)

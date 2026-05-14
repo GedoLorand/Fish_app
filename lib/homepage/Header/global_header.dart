@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
+import 'package:login_fish_app/backend-login/homepage.dart';
 import 'package:login_fish_app/controllers/theme_controller.dart';
 
 class GlobalHeader extends StatelessWidget implements PreferredSizeWidget {
@@ -19,14 +20,15 @@ class GlobalHeader extends StatelessWidget implements PreferredSizeWidget {
       ),
       title: GestureDetector(
         onTap: () async {
-          // Először bezárjuk a Drawer-t, ha nyitva van
-          Navigator.of(context).maybePop(); // becsukja a drawer-t ha kell
+          // Close the drawer only if it's open (avoid popping a normal route)
+          final scaffoldState = Scaffold.maybeOf(context);
+          if (scaffoldState != null && scaffoldState.isDrawerOpen) {
+            Navigator.of(context).pop();
+            await Future.delayed(const Duration(milliseconds: 250));
+          }
 
-          // Megvárjuk, hogy az animáció befejeződjön
-          await Future.delayed(const Duration(milliseconds: 250));
-
-          // Ezután visszanavigálunk az első (main.dart) oldalra
-          Navigator.of(context).popUntil((route) => route.isFirst);
+          // Use Get to clear stack and open Homepage (map), forcing a reload
+          Get.offAll(() => Homepage());
         },
         child: Text(
           "MAP",

@@ -46,6 +46,8 @@ class _MapScreenState extends State<MapScreen> {
   bool _mapReady = false;
   File? _imageFile;
   bool _uploading = false;
+  Timer? _locationTimer;
+  double _currentZoom = 14.0;
   // store photo entries (point + url + doc id) so we can build markers and
   // look up entries when clusters are tapped
   List<Map<String, dynamic>> _photoEntries = [];
@@ -56,6 +58,8 @@ class _MapScreenState extends State<MapScreen> {
     super.initState();
     _mapController = MapController();
     _determinePosition();
+    // Start periodic location refresh (every 10 seconds)
+    _startLocationTimer();
     // Listen for uploaded images (all users) and create a list of entries
     _imagesSub = FirebaseFirestore.instance
         .collectionGroup('images')
@@ -125,6 +129,32 @@ class _MapScreenState extends State<MapScreen> {
     // Ha már létrejött a térkép, egyszerűen állítsuk be az initial position-t (flutter_map használja)
   }
 
+  void _startLocationTimer() {
+    // refresh user's position every 10 seconds while the screen is mounted
+    _locationTimer?.cancel();
+    _locationTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.best,
+        );
+        if (!mounted) return;
+        final newPos = LatLng(pos.latitude, pos.longitude);
+        // update local state and move map if map already ready
+        setState(() {
+          _initialPosition = newPos;
+          _locationLoaded = true;
+        });
+        if (_mapReady) {
+          try {
+            _mapController.move(newPos, _currentZoom);
+          } catch (_) {}
+        }
+      } catch (_) {
+        // ignore location errors silently
+      }
+    });
+  }
+
   Future<void> _takePhoto() async {
     try {
       final ImagePicker picker = ImagePicker();
@@ -173,7 +203,6 @@ class _MapScreenState extends State<MapScreen> {
         print('debug: failed to get idToken: $e');
       }
       final String filename = '${DateTime.now().millisecondsSinceEpoch}.jpg';
-
       // Store file under a user-scoped folder in Storage
       final ref = FirebaseStorage.instance.ref().child(
         'user_images/$uid/$filename',
@@ -268,6 +297,24 @@ class _MapScreenState extends State<MapScreen> {
         'url': url,
         'createdAt': FieldValue.serverTimestamp(),
       };
+      // Try to include uploader name and owner id for other users to see
+      String uploaderName = user.displayName ?? '';
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
+        if (userDoc.exists) {
+          final d = userDoc.data();
+          if (d != null &&
+              d['name'] != null &&
+              (d['name'] as String).trim().isNotEmpty) {
+            uploaderName = d['name'] as String;
+          }
+        }
+      } catch (_) {}
+      docData['uploaderName'] = uploaderName;
+      docData['ownerId'] = uid;
       // Use provided species from finalMetadata or fallback to generic 'hal'
       String speciesValue = 'hal';
       if (finalMetadata != null &&
@@ -294,6 +341,10 @@ class _MapScreenState extends State<MapScreen> {
         docData.addAll(copy2);
       }
       // location is not stored per user request
+      // Store location if we were able to obtain it so the photo appears on the map
+      if (photoPoint != null) {
+        docData['location'] = photoPoint;
+      }
 
       // Save metadata under /users/{uid}/images/{autoId} so it matches Firestore rules
       final docRef = await FirebaseFirestore.instance
@@ -305,9 +356,10 @@ class _MapScreenState extends State<MapScreen> {
       // (No automatic suggestion collection — user-entered species is authoritative)
 
       // Immediately append the new entry locally so the map updates without re-opening
-      final LatLng entryPoint = (photoPoint != null)
+      // If the photo had no location, do not create a local marker (point == null).
+      final LatLng? entryPoint = (photoPoint != null)
           ? LatLng(photoPoint.latitude, photoPoint.longitude)
-          : _initialPosition;
+          : null;
       final localDoc = Map<String, dynamic>.from(docData);
       // Replace server timestamp with current local time for immediate UI
       localDoc['createdAt'] = DateTime.now();
@@ -378,15 +430,20 @@ class _MapScreenState extends State<MapScreen> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: _initialPosition,
-              initialZoom: 14.0,
+              initialZoom: _currentZoom,
               onMapReady: () {
                 _mapReady = true;
                 if (_locationLoaded) {
                   try {
-                    _mapController.move(_initialPosition, 14.0);
+                    _mapController.move(_initialPosition, _currentZoom);
                   } catch (_) {}
                 }
                 setState(() {});
+              },
+              onPositionChanged: (pos, hasGesture) {
+                try {
+                  _currentZoom = pos.zoom;
+                } catch (_) {}
               },
             ),
             children: [
@@ -403,50 +460,58 @@ class _MapScreenState extends State<MapScreen> {
                   size: const Size(40, 40),
                   alignment: Alignment.center,
                   padding: const EdgeInsets.all(50),
+                  // build markers from entries that have a valid geo-point
                   markers: [
-                    if (_locationLoaded)
-                      Marker(
-                        width: 40,
-                        height: 40,
-                        point: _initialPosition,
-                        child: const Icon(
-                          Icons.location_on,
-                          size: 40,
-                          color: Colors.red,
-                        ),
-                      ),
-                    // build markers from entries
-                    ..._photoEntries.map((e) {
-                      final LatLng markerPoint =
-                          (e['point'] as LatLng?) ?? _initialPosition;
-                      // If the original doc lacked a location, we place a fallback marker
-                      // at the user's current known position so the icon is visible for testing.
-                      final bool hadLocation = (e['point'] as LatLng?) != null;
-                      return Marker(
-                        width: 44,
-                        height: 44,
-                        point: markerPoint,
-                        child: PhotoMarker(
-                          size: hadLocation ? 36 : 40,
-                          onTap: () => _showPhotoDialog(
-                            e['url'] as String,
-                            e['doc'] as Map<String, dynamic>,
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                    ..._photoEntries
+                        .where((e) => (e['point'] as LatLng?) != null)
+                        .map((e) {
+                          final LatLng markerPoint = e['point'] as LatLng;
+                          return Marker(
+                            width: 44,
+                            height: 44,
+                            point: markerPoint,
+                            child: PhotoMarker(
+                              size: 36,
+                              onTap: () => _showPhotoDialog(
+                                e['url'] as String,
+                                e['doc'] as Map<String, dynamic>,
+                              ),
+                            ),
+                          );
+                        })
+                        .toList(),
                   ],
                   builder: (context, markers) {
                     return GestureDetector(
                       onTap: () async {
                         try {
-                          final clusterPoints = markers
-                              .map((m) => m.point)
-                              .toSet();
+                          // Debug: log how many markers the cluster reports
+                          // and how many matching entries we find in _photoEntries.
+                          final points = markers.map((m) => m.point).toList();
+                          if (points.isEmpty) return;
+                          double minLat = points.first.latitude;
+                          double maxLat = points.first.latitude;
+                          double minLng = points.first.longitude;
+                          double maxLng = points.first.longitude;
+                          for (final p in points) {
+                            if (p.latitude < minLat) minLat = p.latitude;
+                            if (p.latitude > maxLat) maxLat = p.latitude;
+                            if (p.longitude < minLng) minLng = p.longitude;
+                            if (p.longitude > maxLng) maxLng = p.longitude;
+                          }
+                          const double eps = 0.0005; // ~50m buffer
                           final clusterEntries = _photoEntries.where((e) {
                             final LatLng? p = e['point'] as LatLng?;
-                            return p != null && clusterPoints.contains(p);
+                            if (p == null) return false;
+                            return p.latitude >= (minLat - eps) &&
+                                p.latitude <= (maxLat + eps) &&
+                                p.longitude >= (minLng - eps) &&
+                                p.longitude <= (maxLng + eps);
                           }).toList();
+                          // ignore: avoid_print
+                          print(
+                            'cluster builder tapped: plugin markers=${markers.length}, bbox matched entries=${clusterEntries.length}',
+                          );
                           await showClusterEntries(
                             context,
                             clusterEntries,
@@ -505,14 +570,32 @@ class _MapScreenState extends State<MapScreen> {
                   },
                   onClusterTap: (cluster) {
                     // find matching entries by point
-                    final clusterPoints = cluster.markers
-                        .map((m) => m.point)
-                        .toSet();
-                    final clusterEntries = _photoEntries
-                        .where(
-                          (e) => clusterPoints.contains(e['point'] as LatLng),
-                        )
-                        .toList();
+                    final points = cluster.markers.map((m) => m.point).toList();
+                    if (points.isEmpty) return;
+                    double minLat = points.first.latitude;
+                    double maxLat = points.first.latitude;
+                    double minLng = points.first.longitude;
+                    double maxLng = points.first.longitude;
+                    for (final p in points) {
+                      if (p.latitude < minLat) minLat = p.latitude;
+                      if (p.latitude > maxLat) maxLat = p.latitude;
+                      if (p.longitude < minLng) minLng = p.longitude;
+                      if (p.longitude > maxLng) maxLng = p.longitude;
+                    }
+                    const double eps = 0.0005;
+                    final clusterEntries = _photoEntries.where((e) {
+                      final LatLng? p = e['point'] as LatLng?;
+                      if (p == null) return false;
+                      return p.latitude >= (minLat - eps) &&
+                          p.latitude <= (maxLat + eps) &&
+                          p.longitude >= (minLng - eps) &&
+                          p.longitude <= (maxLng + eps);
+                    }).toList();
+                    // Debug: log counts when cluster is tapped
+                    // ignore: avoid_print
+                    print(
+                      'onClusterTap: plugin markers=${cluster.markers.length}, bbox matched entries=${clusterEntries.length}',
+                    );
                     // show a full, scrollable list so user can browse multiple catches without zooming
                     showModalBottomSheet(
                       context: context,
@@ -630,6 +713,43 @@ class _MapScreenState extends State<MapScreen> {
                                                       ),
                                                 ),
                                               ),
+
+                                              Padding(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12.0,
+                                                      vertical: 8.0,
+                                                    ),
+                                                child: Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment
+                                                          .spaceBetween,
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        doc['uploaderName'] ??
+                                                            'Ismeretlen',
+                                                        style: const TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Text(
+                                                      dateText,
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.grey[600],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+
                                               Padding(
                                                 padding: const EdgeInsets.all(
                                                   12.0,
@@ -716,6 +836,22 @@ class _MapScreenState extends State<MapScreen> {
                   },
                 ),
               ),
+              // User location marker (separate, not clustered)
+              if (_locationLoaded)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      width: 40,
+                      height: 40,
+                      point: _initialPosition,
+                      child: const Icon(
+                        Icons.my_location,
+                        size: 36,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
           if (!_locationLoaded || !_mapReady)
@@ -781,6 +917,9 @@ class _MapScreenState extends State<MapScreen> {
   void dispose() {
     try {
       _imagesSub.cancel();
+    } catch (_) {}
+    try {
+      _locationTimer?.cancel();
     } catch (_) {}
     super.dispose();
   }
