@@ -8,6 +8,7 @@ import 'package:login_fish_app/backend-login/auth_service.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:login_fish_app/backend-login/complete_profile.dart';
+import 'package:login_fish_app/backend-login/login.dart';
 
 class Signup extends StatefulWidget {
   const Signup({super.key});
@@ -251,6 +252,14 @@ class _SignupState extends State<Signup> {
                               ),
                             ),
                       const SizedBox(height: 12),
+                      // Button to go back to the login screen
+                      TextButton(
+                        onPressed: () => Get.to(() => Login()),
+                        child: Text(
+                          'Vissza a bejelentkezéshez',
+                          style: TextStyle(color: AppTheme.primaryColor),
+                        ),
+                      ),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton.icon(

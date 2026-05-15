@@ -5,7 +5,9 @@ class AuthService {
   /// Signs in with Google and links/authenticates with Firebase.
   /// Returns the [UserCredential] on success, or throws.
   static Future<UserCredential> signInWithGoogle() async {
-    // Trigger the authentication flow
+    // Ensure the account chooser always appears by signing out first
+    await GoogleSignIn().signOut();
+    // Trigger the authentication flow (this will show the account chooser)
     final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
     if (googleUser == null) {
       throw FirebaseAuthException(
