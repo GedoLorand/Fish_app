@@ -34,12 +34,16 @@ class PhotoDetailDialog extends StatelessWidget {
       }
       // append any other fields that are not in the ordered list
       doc!.forEach((k, v) {
+        // exclude fields that should not be shown in the dynamic details list
         if (k == 'url' ||
             k == 'createdAt' ||
             k == 'point' ||
             k == 'fileName' ||
             k == 'uid' ||
-            k == 'location')
+            k == 'location' ||
+            k == 'ownerId' ||
+            k == 'public' ||
+            k == 'uploaderName')
           return;
         if (order.contains(k)) return;
         if (v == null) return;

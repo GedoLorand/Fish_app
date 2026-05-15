@@ -40,11 +40,15 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   LatLng _initialPosition = LatLng(47.4979, 19.0402); // Deefault: Budapest
   bool _locationLoaded = false;
   late final MapController _mapController;
   bool _mapReady = false;
+  bool _filterOnlyMine = false;
+  late final AnimationController _hintAnimController;
+  late final Animation<double> _hintOpacity;
+  bool _showFilterHint = false;
   File? _imageFile;
   bool _uploading = false;
   Timer? _locationTimer;
@@ -64,6 +68,13 @@ class _MapScreenState extends State<MapScreen> {
     super.initState();
     _mapController = MapController();
     _determinePosition();
+    _hintAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+    _hintOpacity = Tween<double>(begin: 0.4, end: 1.0).animate(
+      CurvedAnimation(parent: _hintAnimController, curve: Curves.easeInOut),
+    );
     // Start periodic location refresh (every 10 seconds)
     _startLocationTimer();
     // Subscribe to top-level /images and the current user's /users/{uid}/images
@@ -818,6 +829,7 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final String? _currentUid = FirebaseAuth.instance.currentUser?.uid;
     return Scaffold(
       body: Stack(
         children: [
@@ -858,7 +870,20 @@ class _MapScreenState extends State<MapScreen> {
                   // build markers from entries that have a valid geo-point
                   markers: [
                     ..._photoEntries
-                        .where((e) => (e['point'] as LatLng?) != null)
+                        .where((e) {
+                          final LatLng? p = e['point'] as LatLng?;
+                          if (p == null) return false;
+                          if (_filterOnlyMine) {
+                            try {
+                              final doc = e['doc'] as Map<String, dynamic>?;
+                              return doc != null &&
+                                  doc['ownerId'] == _currentUid;
+                            } catch (_) {
+                              return false;
+                            }
+                          }
+                          return true;
+                        })
                         .map((e) {
                           final LatLng markerPoint = e['point'] as LatLng;
                           return Marker(
@@ -898,10 +923,22 @@ class _MapScreenState extends State<MapScreen> {
                           final clusterEntries = _photoEntries.where((e) {
                             final LatLng? p = e['point'] as LatLng?;
                             if (p == null) return false;
-                            return p.latitude >= (minLat - eps) &&
+                            final inBox =
+                                p.latitude >= (minLat - eps) &&
                                 p.latitude <= (maxLat + eps) &&
                                 p.longitude >= (minLng - eps) &&
                                 p.longitude <= (maxLng + eps);
+                            if (!inBox) return false;
+                            if (_filterOnlyMine) {
+                              try {
+                                final doc = e['doc'] as Map<String, dynamic>?;
+                                return doc != null &&
+                                    doc['ownerId'] == _currentUid;
+                              } catch (_) {
+                                return false;
+                              }
+                            }
+                            return true;
                           }).toList();
                           // ignore: avoid_print
                           print(
@@ -981,10 +1018,21 @@ class _MapScreenState extends State<MapScreen> {
                     final clusterEntries = _photoEntries.where((e) {
                       final LatLng? p = e['point'] as LatLng?;
                       if (p == null) return false;
-                      return p.latitude >= (minLat - eps) &&
+                      final inBox =
+                          p.latitude >= (minLat - eps) &&
                           p.latitude <= (maxLat + eps) &&
                           p.longitude >= (minLng - eps) &&
                           p.longitude <= (maxLng + eps);
+                      if (!inBox) return false;
+                      if (_filterOnlyMine) {
+                        try {
+                          final doc = e['doc'] as Map<String, dynamic>?;
+                          return doc != null && doc['ownerId'] == _currentUid;
+                        } catch (_) {
+                          return false;
+                        }
+                      }
+                      return true;
                     }).toList();
                     // Debug: log counts when cluster is tapped
                     // ignore: avoid_print
@@ -1271,35 +1319,127 @@ class _MapScreenState extends State<MapScreen> {
               child: FloatingActionButton(
                 heroTag: 'gallery_fab',
                 mini: true,
-                backgroundColor: const Color.fromARGB(255, 14, 66, 18),
-                onPressed: () {
-                  Navigator.of(context).push(
+                backgroundColor: AppTheme.primaryColor,
+                shape: const CircleBorder(
+                  side: BorderSide(color: Colors.black, width: 2),
+                ),
+                onPressed: () async {
+                  final res = await Navigator.of(context).push(
                     MaterialPageRoute(builder: (context) => const Gallery()),
                   );
+                  try {
+                    if (res is Map && res['showOnlyMine'] == true) {
+                      setState(() {
+                        _filterOnlyMine = true;
+                        // show animated hint pointing to the clear-filter FAB
+                        _showFilterHint = true;
+                        _hintAnimController.repeat(reverse: true);
+                        // auto-hide after a short period
+                        Future.delayed(const Duration(seconds: 6), () {
+                          if (!mounted) return;
+                          setState(() {
+                            _showFilterHint = false;
+                          });
+                          try {
+                            _hintAnimController.stop();
+                          } catch (_) {}
+                        });
+                      });
+                    }
+                  } catch (_) {}
                 },
-                child: const Icon(
+                child: _outlinedIcon(
                   Icons.photo_library,
+                  size: 20,
                   color: AppTheme.textColor,
                 ),
               ),
             ),
           ),
+          // Clear filter button when only-my-items filter is active
+          if (_filterOnlyMine)
+            Positioned(
+              top: 80,
+              right: 16,
+              child: SafeArea(
+                child: FloatingActionButton(
+                  heroTag: 'clear_filter_fab',
+                  mini: true,
+                  backgroundColor: AppTheme.primaryColor,
+                  shape: const CircleBorder(
+                    side: BorderSide(color: Colors.black, width: 2),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _filterOnlyMine = false;
+                    });
+                  },
+                  child: _filterOffIcon(size: 20),
+                ),
+              ),
+            ),
+          // Hint overlay pointing to the clear-filter FAB when active
+          if (_showFilterHint)
+            Positioned(
+              top: 84,
+              right: 68,
+              child: FadeTransition(
+                opacity: _hintOpacity,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade600,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.black, width: 2),
+                        ),
+                        child: Text(
+                          'Filter kikapcsolása',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      // red arrow with black outline
+                      _outlinedIcon(
+                        Icons.arrow_right_alt,
+                        size: 28,
+                        color: Colors.red.shade200,
+                        // _outlinedIcon's outlineColor defaults to black, keep it
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           // (debug FAB removed)
         ],
       ),
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 16.0, right: 16.0),
         child: SizedBox(
-          width: 68,
-          height: 68,
+          width: 88,
+          height: 88,
           child: FloatingActionButton(
             heroTag: 'camera_fab',
-            backgroundColor: const Color.fromARGB(255, 14, 66, 18),
+            backgroundColor: AppTheme.primaryColor,
+            shape: const CircleBorder(
+              side: BorderSide(color: Colors.black, width: 2),
+            ),
             elevation: 8,
-            child: const Icon(
+            child: _outlinedIcon(
               Icons.camera_alt,
+              size: 60,
               color: AppTheme.textColor,
-              size: 50,
             ),
             onPressed: _takePhoto,
           ),
@@ -1307,6 +1447,8 @@ class _MapScreenState extends State<MapScreen> {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
+    // Ensure hint is not running initially
+    _hintAnimController.stop();
   }
 
   @override
@@ -1326,7 +1468,76 @@ class _MapScreenState extends State<MapScreen> {
     try {
       _burstRefreshTimer?.cancel();
     } catch (_) {}
+    try {
+      _hintAnimController.dispose();
+    } catch (_) {}
     super.dispose();
+  }
+
+  // Helper to draw an icon with a black outline by drawing several
+  // slightly-offset black copies beneath the main (foreground) icon.
+  Widget _outlinedIcon(
+    IconData icon, {
+    required double size,
+    required Color color,
+    Color outlineColor = Colors.black,
+  }) {
+    const offsets = [
+      Offset(-1.2, -1.2),
+      Offset(0, -1.2),
+      Offset(1.2, -1.2),
+      Offset(-1.2, 0),
+      Offset(1.2, 0),
+      Offset(-1.2, 1.2),
+      Offset(0, 1.2),
+      Offset(1.2, 1.2),
+    ];
+    return SizedBox(
+      width: size + 6,
+      height: size + 6,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          for (final off in offsets)
+            Transform.translate(
+              offset: off,
+              child: Icon(icon, size: size, color: outlineColor),
+            ),
+          Icon(icon, size: size * 0.88, color: color),
+        ],
+      ),
+    );
+  }
+
+  // Draw a filter-off icon: base filter icon with a red slash that has a black outline.
+  Widget _filterOffIcon({double size = 20}) {
+    return SizedBox(
+      width: size + 8,
+      height: size + 8,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // base filter icon (outlined)
+          _outlinedIcon(
+            Icons.filter_alt,
+            size: size,
+            color: AppTheme.textColor,
+          ),
+          // red slash with black outline painted on top
+          SizedBox(
+            width: size,
+            height: size,
+            child: CustomPaint(
+              painter: _SlashPainter(
+                color: Colors.red.shade400,
+                outlineColor: Colors.black,
+                strokeFraction: 0.18,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showPhotoDialog(String url, Map<String, dynamic> doc) {
@@ -1350,4 +1561,39 @@ class _MapScreenState extends State<MapScreen> {
     } catch (_) {}
     return 'url: $url\nownerId: $owner\npublic: $isPublic\nlocation: $locText';
   }
+}
+
+class _SlashPainter extends CustomPainter {
+  final Color color;
+  final Color outlineColor;
+  final double strokeFraction;
+
+  _SlashPainter({
+    required this.color,
+    required this.outlineColor,
+    this.strokeFraction = 0.16,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final pBlack = Paint()
+      ..color = outlineColor
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = size.width * (strokeFraction + 0.06);
+    final pRed = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = size.width * strokeFraction;
+
+    // Draw slash from bottom-left towards top-right a bit inset
+    final start = Offset(size.width * 0.18, size.height * 0.78);
+    final end = Offset(size.width * 0.82, size.height * 0.22);
+    canvas.drawLine(start, end, pBlack);
+    canvas.drawLine(start, end, pRed);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

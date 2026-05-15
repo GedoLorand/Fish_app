@@ -112,55 +112,81 @@ class _GalleryState extends State<Gallery> {
                 );
               },
             ),
-      bottomNavigationBar: Container(
-        height: 70,
-        decoration: BoxDecoration(
-          color: AppTheme.surfaceColor,
-          border: Border(
-            top: BorderSide(color: AppTheme.textColor.withOpacity(0.12)),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          padding: EdgeInsets.only(
+            left: 8,
+            right: 8,
+            top: 10,
+            bottom: (MediaQuery.of(context).padding.bottom + 10) * 0.25,
           ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Bal oldali gomb - Filter
-            Padding(
-              padding: const EdgeInsets.only(left: 20.0),
-              child: TextButton(
-                onPressed: () {}, // Üres függvény most
-                child: Row(
-                  children: [
-                    Icon(Icons.filter_alt, color: AppTheme.primaryColor),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Filter',
-                      style: TextStyle(
-                        color: AppTheme.textColor,
-                        fontFamily: AppTheme.fontFamily,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+          decoration: BoxDecoration(
+            color: AppTheme.surfaceColor,
+            border: Border(
+              top: BorderSide(color: AppTheme.textColor.withOpacity(0.12)),
             ),
-
-            // Jobb oldali gomb - My Map
-            Padding(
-              padding: const EdgeInsets.only(right: 20.0),
-              child: TextButton(
-                onPressed: () {}, // Üres függvény most
-                child: Text(
-                  'My Map',
-                  style: TextStyle(
-                    color: AppTheme.primaryColor,
-                    fontFamily: AppTheme.fontFamily,
-                    fontSize: 16,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Bal oldali gomb - Filter
+              Padding(
+                padding: const EdgeInsets.only(left: 8.0),
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(72, 40),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () {}, // Üres függvény most
+                  child: Row(
+                    children: [
+                      Icon(Icons.filter_alt, color: AppTheme.primaryColor),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Filter',
+                        style: TextStyle(
+                          color: AppTheme.textColor,
+                          fontFamily: AppTheme.fontFamily,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
-          ],
+
+              // Jobb oldali gomb - My Map
+              Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(72, 40),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  onPressed: () {
+                    Navigator.of(context).pop({'showOnlyMine': true});
+                  },
+                  child: Text(
+                    'My Map',
+                    style: TextStyle(
+                      color: AppTheme.primaryColor,
+                      fontFamily: AppTheme.fontFamily,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
