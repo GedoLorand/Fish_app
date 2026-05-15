@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
@@ -47,11 +48,16 @@ class _MapScreenState extends State<MapScreen> {
   File? _imageFile;
   bool _uploading = false;
   Timer? _locationTimer;
+  Timer? _burstRefreshTimer;
   double _currentZoom = 14.0;
   // store photo entries (point + url + doc id) so we can build markers and
   // look up entries when clusters are tapped
   List<Map<String, dynamic>> _photoEntries = [];
-  late final StreamSubscription<QuerySnapshot> _imagesSub;
+  StreamSubscription<QuerySnapshot>? _topImagesSub;
+  StreamSubscription<QuerySnapshot>? _userImagesSub;
+  QuerySnapshot? _lastTopSnap;
+  QuerySnapshot? _lastUserSnap;
+  StreamSubscription<DocumentSnapshot>? _imagesPingSub;
 
   @override
   void initState() {
@@ -60,30 +66,302 @@ class _MapScreenState extends State<MapScreen> {
     _determinePosition();
     // Start periodic location refresh (every 10 seconds)
     _startLocationTimer();
-    // Listen for uploaded images (all users) and create a list of entries
-    _imagesSub = FirebaseFirestore.instance
-        .collectionGroup('images')
+    // Subscribe to top-level /images and the current user's /users/{uid}/images
+    // and merge results client-side. This avoids relying on collectionGroup
+    // queries which may be blocked by security rules.
+    _subscribeToImageStreams();
+
+    // Listen to a lightweight "ping" document so other clients can be
+    // notified quickly when a new image is published. This avoids aggressive
+    // polling while ensuring near-instant updates on other devices.
+    _imagesPingSub = FirebaseFirestore.instance
+        .collection('meta')
+        .doc('images_last_update')
         .snapshots()
         .listen(
-          (snap) {
-            final List<Map<String, dynamic>> entries = [];
-            for (final doc in snap.docs) {
-              final data = doc.data() as Map<String, dynamic>;
-              GeoPoint? gp = data['location'] as GeoPoint?;
-              LatLng? pt;
-              if (gp != null) {
-                pt = LatLng(gp.latitude, gp.longitude);
+          (doc) async {
+            try {
+              // When the ping doc changes, force-refresh from server and optionally
+              // show a short debug hint so we can tell whether other devices react.
+              await _refreshPhotoEntriesFromServer();
+              final int count = _photoEntries.length;
+              if (kDebugMode && mounted) {
+                try {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      duration: const Duration(seconds: 2),
+                      content: Text('images ping received — entries: $count'),
+                    ),
+                  );
+                } catch (_) {}
               }
-              final url = data['url'] as String? ?? '';
-              entries.add({'point': pt, 'url': url, 'doc': data, 'id': doc.id});
+            } catch (e) {
+              // ignore errors here
             }
-            setState(() => _photoEntries = entries);
           },
           onError: (e) {
-            // Log error but keep existing entries so map icons remain visible.
-            print('images subscription error: $e');
+            // ignore ping listener errors
+            // ignore: avoid_print
+            print('images ping listen error: $e');
           },
         );
+  }
+
+  // Fallback fetch: try top-level /images and per-user /users/{uid}/images when
+  // collectionGroup queries are not permitted by rules. Merge results and avoid duplicates.
+  Future<void> _fallbackFetchImages() async {
+    try {
+      final List<Map<String, dynamic>> entries = [];
+      final seen = <String>{};
+
+      // Try top-level /images first
+      try {
+        final top = await FirebaseFirestore.instance
+            .collection('images')
+            .where('public', isEqualTo: true)
+            .get();
+        for (final doc in top.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          GeoPoint? gp = data['location'] as GeoPoint?;
+          LatLng? pt;
+          if (gp != null) pt = LatLng(gp.latitude, gp.longitude);
+          final url = data['url'] as String? ?? '';
+          entries.add({'point': pt, 'url': url, 'doc': data, 'id': doc.id});
+          seen.add(doc.id);
+        }
+      } catch (e) {
+        // ignore top-level read errors, try per-user next
+        print('fallback: top-level /images read failed: $e');
+      }
+
+      // Try current user's images (if signed in)
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        try {
+          final userSnap = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .collection('images')
+              .get();
+          for (final doc in userSnap.docs) {
+            if (seen.contains(doc.id)) continue;
+            final data = doc.data() as Map<String, dynamic>;
+            GeoPoint? gp = data['location'] as GeoPoint?;
+            LatLng? pt;
+            if (gp != null) pt = LatLng(gp.latitude, gp.longitude);
+            final url = data['url'] as String? ?? '';
+            entries.add({'point': pt, 'url': url, 'doc': data, 'id': doc.id});
+            seen.add(doc.id);
+          }
+        } catch (e) {
+          print('fallback: user images read failed: $e');
+        }
+      }
+
+      if (!mounted) return;
+      setState(() => _photoEntries = entries);
+    } catch (e) {
+      print('fallbackFetchImages failed: $e');
+    }
+  }
+
+  // Subscribe to top-level /images and current user's /users/{uid}/images
+  // merge snapshots client-side so we don't rely on collectionGroup permissions.
+  void _subscribeToImageStreams() {
+    // Top-level images (public)
+    try {
+      _topImagesSub = FirebaseFirestore.instance
+          .collection('images')
+          .where('public', isEqualTo: true)
+          .snapshots()
+          .listen(
+            (snap) {
+              _lastTopSnap = snap;
+              _mergeImageSnapshots();
+            },
+            onError: (e) {
+              // fallback to fetch on error
+              // ignore: avoid_print
+              print('top images listen error: $e');
+              _fallbackFetchImages();
+            },
+          );
+    } catch (e) {
+      // ignore silent
+    }
+
+    // Current user's images (if signed in)
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        _userImagesSub = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('images')
+            .snapshots()
+            .listen(
+              (snap) {
+                _lastUserSnap = snap;
+                _mergeImageSnapshots();
+              },
+              onError: (e) {
+                // ignore: avoid_print
+                print('user images listen error: $e');
+                _fallbackFetchImages();
+              },
+            );
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  void _mergeImageSnapshots() {
+    try {
+      final List<Map<String, dynamic>> entries = [];
+      final seen = <String>{};
+      if (_lastTopSnap != null) {
+        for (final doc in _lastTopSnap!.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          GeoPoint? gp = data['location'] as GeoPoint?;
+          LatLng? pt;
+          if (gp != null) pt = LatLng(gp.latitude, gp.longitude);
+          final url = data['url'] as String? ?? '';
+          entries.add({'point': pt, 'url': url, 'doc': data, 'id': doc.id});
+          seen.add(doc.id);
+        }
+      }
+      if (_lastUserSnap != null) {
+        for (final doc in _lastUserSnap!.docs) {
+          if (seen.contains(doc.id)) continue;
+          final data = doc.data() as Map<String, dynamic>;
+          GeoPoint? gp = data['location'] as GeoPoint?;
+          LatLng? pt;
+          if (gp != null) pt = LatLng(gp.latitude, gp.longitude);
+          final url = data['url'] as String? ?? '';
+          entries.add({'point': pt, 'url': url, 'doc': data, 'id': doc.id});
+        }
+      }
+      if (!mounted) return;
+      setState(() => _photoEntries = entries);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // Debug: run quick server-side checks and show a dialog with counts and sample ids
+  Future<void> _runDebugChecks() async {
+    try {
+      final serverGroup = await FirebaseFirestore.instance
+          .collectionGroup('images')
+          .where('public', isEqualTo: true)
+          .get(GetOptions(source: Source.server));
+      final topLevel = await FirebaseFirestore.instance
+          .collection('images')
+          .where('public', isEqualTo: true)
+          .get(GetOptions(source: Source.server));
+      final userImages = FirebaseAuth.instance.currentUser != null
+          ? await FirebaseFirestore.instance
+                .collection('users')
+                .doc(FirebaseAuth.instance.currentUser!.uid)
+                .collection('images')
+                .get(GetOptions(source: Source.server))
+          : null;
+
+      final sampleServerIds = serverGroup.docs
+          .take(5)
+          .map((d) => d.id)
+          .toList();
+      final sampleTopIds = topLevel.docs.take(5).map((d) => d.id).toList();
+      final sampleUserIds = userImages?.docs.take(5).map((d) => d.id).toList();
+
+      // Prepare small sample of document fields for display
+      Map<String, dynamic>? serverSample;
+      Map<String, dynamic>? topSample;
+      Map<String, dynamic>? userSample;
+      if (serverGroup.docs.isNotEmpty)
+        serverSample = serverGroup.docs.first.data();
+      if (topLevel.docs.isNotEmpty) topSample = topLevel.docs.first.data();
+      if (userImages != null && userImages.docs.isNotEmpty)
+        userSample = userImages.docs.first.data();
+
+      // ignore: use_build_context_synchronously
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Debug: Firestore állapot'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: [
+                Text(
+                  'collectionGroup images (server): ${serverGroup.docs.length}',
+                ),
+                Text('top-level /images: ${topLevel.docs.length}'),
+                Text(
+                  'your /users/{uid}/images: ${userImages?.docs.length ?? 'not signed in'}',
+                ),
+                const SizedBox(height: 8),
+                Text('server sample ids: ${sampleServerIds.join(', ')}'),
+                Text('top sample ids: ${sampleTopIds.join(', ')}'),
+                Text('user sample ids: ${sampleUserIds?.join(', ') ?? ''}'),
+                const SizedBox(height: 12),
+                const Text(
+                  '--- Server sample document (first) ---',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  serverSample != null
+                      ? _formatDocSummary(serverSample)
+                      : 'n/a',
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '--- Top-level sample document (first) ---',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(topSample != null ? _formatDocSummary(topSample) : 'n/a'),
+                const SizedBox(height: 8),
+                const Text(
+                  '--- Your user sample document (first) ---',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  userSample != null ? _formatDocSummary(userSample) : 'n/a',
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } catch (e, st) {
+      // Log full error for debugging
+      // ignore: avoid_print
+      print('debugChecks failed: $e\n$st');
+      if (!mounted) return;
+      // Show a dialog with the error so the tester can copy it
+      // ignore: use_build_context_synchronously
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Debug lekérdezés sikertelen'),
+          content: SingleChildScrollView(
+            child: SelectableText('Error: $e\n\nStack:\n$st'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Future<void> _determinePosition() async {
@@ -125,6 +403,11 @@ class _MapScreenState extends State<MapScreen> {
           _mapController.move(_initialPosition, 14.0);
         } catch (_) {}
       }
+      // After we obtain location, perform a short burst of refreshes so
+      // nearby devices see newly uploaded images quickly without running
+      // an extremely aggressive permanent poll (10 ms). Default burst:
+      // 200 ms interval for 2 seconds.
+      _startBurstRefresh(intervalMs: 200, durationMs: 2000);
     });
     // Ha már létrejött a térkép, egyszerűen állítsuk be az initial position-t (flutter_map használja)
   }
@@ -149,10 +432,62 @@ class _MapScreenState extends State<MapScreen> {
             _mapController.move(newPos, _currentZoom);
           } catch (_) {}
         }
+        // Also refresh photo entries from server so other users' uploads appear quickly
+        try {
+          await _refreshPhotoEntriesFromServer();
+        } catch (_) {}
       } catch (_) {
         // ignore location errors silently
       }
     });
+  }
+
+  // Short burst refresh: run repeated server refreshes for a short duration.
+  // This is used right after location is obtained so the map populates
+  // immediately on other devices that might have missed realtime events.
+  void _startBurstRefresh({int intervalMs = 200, int durationMs = 2000}) {
+    try {
+      _burstRefreshTimer?.cancel();
+      final int iterations = (durationMs / intervalMs).ceil();
+      int count = 0;
+      _burstRefreshTimer = Timer.periodic(Duration(milliseconds: intervalMs), (
+        t,
+      ) async {
+        try {
+          await _refreshPhotoEntriesFromServer();
+        } catch (_) {}
+        count++;
+        if (count >= iterations) {
+          try {
+            t.cancel();
+          } catch (_) {}
+        }
+      });
+    } catch (_) {}
+  }
+
+  // Force-refresh the list of photo entries from server (no local cache)
+  Future<void> _refreshPhotoEntriesFromServer() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collectionGroup('images')
+          .get(GetOptions(source: Source.server));
+      final List<Map<String, dynamic>> entries = [];
+      for (final doc in snap.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        GeoPoint? gp = data['location'] as GeoPoint?;
+        LatLng? pt;
+        if (gp != null) pt = LatLng(gp.latitude, gp.longitude);
+        final url = data['url'] as String? ?? '';
+        entries.add({'point': pt, 'url': url, 'doc': data, 'id': doc.id});
+      }
+      if (!mounted) return;
+      setState(() => _photoEntries = entries);
+    } catch (e) {
+      // ignore fetch errors but log for debugging
+      // ignore: avoid_print
+      print('refreshPhotoEntriesFromServer failed: $e');
+    }
   }
 
   Future<void> _takePhoto() async {
@@ -250,12 +585,18 @@ class _MapScreenState extends State<MapScreen> {
         // If we have a server error, show it to help debugging; otherwise show generic message
         if (serverError != null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Szerverhiba: ${serverError}')),
+            SnackBar(
+              backgroundColor: Colors.red.shade700,
+              behavior: SnackBarBehavior.floating,
+              content: Text('Szerverhiba: ${serverError}'),
+            ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('A kép nem hal — feltöltés megszakítva.'),
+            SnackBar(
+              backgroundColor: Colors.red.shade700,
+              behavior: SnackBarBehavior.floating,
+              content: const Text('A kép nem hal — feltöltés megszakítva.'),
             ),
           );
         }
@@ -276,9 +617,13 @@ class _MapScreenState extends State<MapScreen> {
           await ref.delete();
         } catch (_) {}
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Feltöltés megszakítva.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+            content: const Text('Feltöltés megszakítva.'),
+          ),
+        );
         return;
       }
 
@@ -315,6 +660,8 @@ class _MapScreenState extends State<MapScreen> {
       } catch (_) {}
       docData['uploaderName'] = uploaderName;
       docData['ownerId'] = uid;
+      // Make uploads visible globally by default
+      docData['public'] = true;
       // Use provided species from finalMetadata or fallback to generic 'hal'
       String speciesValue = 'hal';
       if (finalMetadata != null &&
@@ -373,16 +720,64 @@ class _MapScreenState extends State<MapScreen> {
         _photoEntries = List<Map<String, dynamic>>.from(_photoEntries)
           ..add(newEntry);
       });
+      // If the uploaded photo included location, center the map to it so user can verify
+      if (entryPoint != null) {
+        try {
+          if (_mapReady) _mapController.move(entryPoint, 16.0);
+        } catch (_) {}
+      }
+
+      // Also write a top-level /images/{id} document so uploads are visible globally
+      try {
+        await FirebaseFirestore.instance
+            .collection('images')
+            .doc(docRef.id)
+            .set({...docData, 'userDocPath': '/users/$uid'});
+        // Also update a lightweight meta "ping" document so other clients
+        // that may not immediately receive collectionGroup updates will
+        // trigger a server refresh via the ping listener added in initState.
+        try {
+          await FirebaseFirestore.instance
+              .collection('meta')
+              .doc('images_last_update')
+              .set({'ts': FieldValue.serverTimestamp()});
+        } catch (e) {
+          // ignore meta update failures but log for debugging
+          // ignore: avoid_print
+          print('warning: failed to update images_last_update ping: $e');
+        }
+      } catch (e) {
+        // Don't fail the upload flow if mirror write fails; log and inform the user
+        // ignore: avoid_print
+        print('warning: failed to write top-level images doc: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Figyelmeztetés: nem sikerült globális tükör létrehozása: $e',
+              ),
+            ),
+          );
+        }
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kép feltöltve a galériába')),
+        SnackBar(
+          backgroundColor: Colors.green.shade700,
+          behavior: SnackBarBehavior.floating,
+          content: const Text('Sikeres képfeltöltés — mentve a galériába'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Hiba a feltöltés során')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+          content: const Text('Hiba a feltöltés során'),
+        ),
+      );
     } finally {
       setState(() {
         _uploading = false;
@@ -889,6 +1284,7 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
           ),
+          // (debug FAB removed)
         ],
       ),
       floatingActionButton: Padding(
@@ -916,10 +1312,19 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     try {
-      _imagesSub.cancel();
+      _topImagesSub?.cancel();
+    } catch (_) {}
+    try {
+      _userImagesSub?.cancel();
+    } catch (_) {}
+    try {
+      _imagesPingSub?.cancel();
     } catch (_) {}
     try {
       _locationTimer?.cancel();
+    } catch (_) {}
+    try {
+      _burstRefreshTimer?.cancel();
     } catch (_) {}
     super.dispose();
   }
@@ -929,5 +1334,20 @@ class _MapScreenState extends State<MapScreen> {
       context: context,
       builder: (_) => PhotoDetailDialog(url: url, doc: doc),
     );
+  }
+
+  String _formatDocSummary(Map<String, dynamic> doc) {
+    final url = doc['url'] ?? 'no-url';
+    final owner = doc['ownerId'] ?? 'no-owner';
+    final isPublic = doc['public'] ?? false;
+    final location = doc['location'];
+    String locText = 'no-location';
+    try {
+      if (location is GeoPoint)
+        locText = 'GeoPoint(${location.latitude}, ${location.longitude})';
+      else if (location is Map)
+        locText = location.toString();
+    } catch (_) {}
+    return 'url: $url\nownerId: $owner\npublic: $isPublic\nlocation: $locText';
   }
 }
