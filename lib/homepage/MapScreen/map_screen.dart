@@ -21,6 +21,7 @@ import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:login_fish_app/homepage/GalleryScreen/Gallery.dart';
 import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
 import 'package:login_fish_app/homepage/MapScreen/photo_marker.dart';
+import 'package:login_fish_app/services/filter_bus.dart';
 
 String _formatWeight(dynamic w) {
   if (w == null) return '-';
@@ -46,6 +47,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   late final MapController _mapController;
   bool _mapReady = false;
   bool _filterOnlyMine = false;
+  bool _filtersActive = false;
   late final AnimationController _hintAnimController;
   late final Animation<double> _hintOpacity;
   bool _showFilterHint = false;
@@ -116,7 +118,36 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             print('images ping listen error: $e');
           },
         );
+    // Listen for filter updates from Filter screen
+    FilterBus.instance.stream.listen((filter) {
+      try {
+        if (!mounted) return;
+        setState(() {
+          _currentFilter = filter;
+          if (filter == null) {
+            _filtersActive = false;
+          } else {
+            _filtersActive = true;
+            // show animated hint pointing to the clear-filter FAB
+            _showFilterHint = true;
+            _hintAnimController.repeat(reverse: true);
+            // auto-hide after a short period
+            Future.delayed(const Duration(seconds: 6), () {
+              if (!mounted) return;
+              setState(() {
+                _showFilterHint = false;
+              });
+              try {
+                _hintAnimController.stop();
+              } catch (_) {}
+            });
+          }
+        });
+      } catch (_) {}
+    });
   }
+
+  Map<String, dynamic>? _currentFilter;
 
   // Fallback fetch: try top-level /images and per-user /users/{uid}/images when
   // collectionGroup queries are not permitted by rules. Merge results and avoid duplicates.
@@ -882,6 +913,62 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                               return false;
                             }
                           }
+                          // apply advanced filter if present
+                          if (_currentFilter != null) {
+                            try {
+                              final doc = e['doc'] as Map<String, dynamic>?;
+                              if (doc == null) return false;
+                              final species =
+                                  _currentFilter?['species'] as String?;
+                              if (species != null &&
+                                  species.trim().isNotEmpty) {
+                                final ds = (doc['species'] ?? '').toString();
+                                if (!ds.toLowerCase().contains(
+                                  species.toLowerCase(),
+                                ))
+                                  return false;
+                              }
+                              final wMin =
+                                  (_currentFilter?['weightMin'] as num?)
+                                      ?.toDouble();
+                              final wMax =
+                                  (_currentFilter?['weightMax'] as num?)
+                                      ?.toDouble();
+                              if (wMin != null || wMax != null) {
+                                double? w;
+                                final val = doc['weight'];
+                                if (val is num)
+                                  w = val.toDouble();
+                                else if (val is String)
+                                  w = double.tryParse(val.replaceAll(',', '.'));
+                                if (w == null) return false;
+                                if (wMin != null && w < wMin) return false;
+                                if (wMax != null && w > wMax) return false;
+                              }
+                              final dateIso =
+                                  _currentFilter?['date'] as String?;
+                              if (dateIso != null) {
+                                try {
+                                  final docCreated = doc['createdAt'];
+                                  DateTime? created;
+                                  if (docCreated is Timestamp)
+                                    created = docCreated.toDate();
+                                  else if (docCreated is DateTime)
+                                    created = docCreated;
+                                  if (created == null) return false;
+                                  final filterDate = DateTime.parse(dateIso);
+                                  if (!(created.year == filterDate.year &&
+                                      created.month == filterDate.month &&
+                                      created.day == filterDate.day))
+                                    return false;
+                                } catch (_) {
+                                  return false;
+                                }
+                              }
+                            } catch (_) {
+                              return false;
+                            }
+                          }
                           return true;
                         })
                         .map((e) {
@@ -1356,8 +1443,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
-          // Clear filter button when only-my-items filter is active
-          if (_filterOnlyMine)
+          // Clear filter button when only-my-items or advanced filters are active
+          if (_filterOnlyMine || _filtersActive)
             Positioned(
               top: 80,
               right: 16,
@@ -1372,7 +1459,13 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   onPressed: () {
                     setState(() {
                       _filterOnlyMine = false;
+                      _filtersActive = false;
+                      _currentFilter = null;
                     });
+                    // notify other screens that filters were cleared
+                    try {
+                      FilterBus.instance.publish(null);
+                    } catch (_) {}
                   },
                   child: _filterOffIcon(size: 20),
                 ),

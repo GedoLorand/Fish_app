@@ -3,6 +3,7 @@ import 'package:login_fish_app/backend-login/login.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:login_fish_app/homepage/GalleryScreen/Gallery.dart';
 import 'package:login_fish_app/homepage/FilterScreen/filter.dart';
+import 'package:login_fish_app/services/filter_bus.dart';
 //import 'package:flutterfishapp/UserScreen/user.dart';
 import 'package:login_fish_app/homepage/SettingsScreen/settings.dart';
 
@@ -43,11 +44,18 @@ class CustomDrawer extends StatelessWidget {
                 _buildListTile(
                   icon: Icons.filter_alt,
                   text: 'Filters',
-                  onTap: () {
-                    Navigator.push(
+                  onTap: () async {
+                    // Close the drawer first so Filter opens on top of the full MapScreen
+                    Navigator.pop(context);
+                    final res = await Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => Filter()),
                     );
+                    try {
+                      if (res is Map && res['clearFilter'] == true) {
+                        FilterBus.instance.publish(null);
+                      }
+                    } catch (_) {}
                   },
                 ),
                 Divider(color: AppTheme.textColor.withOpacity(0.3)),
