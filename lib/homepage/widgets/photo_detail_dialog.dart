@@ -1,14 +1,38 @@
 import 'dart:math';
+import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 
-class PhotoDetailDialog extends StatelessWidget {
+class PhotoDetailDialog extends StatefulWidget {
   final String? url;
   final Map<String, dynamic>? doc;
 
   const PhotoDetailDialog({Key? key, this.url, this.doc}) : super(key: key);
+
+  @override
+  State<PhotoDetailDialog> createState() => _PhotoDetailDialogState();
+}
+
+class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
+  String? _avatarBase64;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAvatar();
+  }
+
+  Future<void> _loadAvatar() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final a = prefs.getString('user_avatar');
+      if (!mounted) return;
+      setState(() => _avatarBase64 = a);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,6 +40,7 @@ class PhotoDetailDialog extends StatelessWidget {
     final maxHeight = mq.size.height * 0.9;
 
     // build ordered list of detail entries excluding common storage fields
+    final doc = widget.doc;
     final details = <MapEntry<String, dynamic>>[];
     if (doc != null) {
       final order = [
@@ -28,12 +53,12 @@ class PhotoDetailDialog extends StatelessWidget {
         'notes',
       ];
       for (final k in order) {
-        if (doc!.containsKey(k) && doc![k] != null) {
-          details.add(MapEntry(k, doc![k]));
+        if (doc.containsKey(k) && doc[k] != null) {
+          details.add(MapEntry(k, doc[k]));
         }
       }
       // append any other fields that are not in the ordered list
-      doc!.forEach((k, v) {
+      doc.forEach((k, v) {
         // exclude fields that should not be shown in the dynamic details list
         if (k == 'url' ||
             k == 'createdAt' ||
@@ -43,7 +68,8 @@ class PhotoDetailDialog extends StatelessWidget {
             k == 'location' ||
             k == 'ownerId' ||
             k == 'public' ||
-            k == 'uploaderName')
+            k == 'uploaderName' ||
+            k == 'userDocPath')
           return;
         if (order.contains(k)) return;
         if (v == null) return;
@@ -67,7 +93,7 @@ class PhotoDetailDialog extends StatelessWidget {
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final imageHeight = url != null
+              final imageHeight = widget.url != null
                   ? min(360.0, constraints.maxHeight * 0.55)
                   : 0.0;
               return SingleChildScrollView(
@@ -75,14 +101,14 @@ class PhotoDetailDialog extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (url != null)
+                    if (widget.url != null)
                       ClipRRect(
                         borderRadius: const BorderRadius.only(
                           topLeft: Radius.circular(8.0),
                           topRight: Radius.circular(8.0),
                         ),
                         child: CachedNetworkImage(
-                          imageUrl: url!,
+                          imageUrl: widget.url!,
                           fit: BoxFit.contain,
                           height: imageHeight,
                           width: double.infinity,
@@ -109,21 +135,39 @@ class PhotoDetailDialog extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Show uploader name prominently if available
+                          // Show uploader name prominently with avatar if available
                           if (doc != null &&
-                              doc!['uploaderName'] != null &&
-                              (doc!['uploaderName'] as String)
-                                  .trim()
-                                  .isNotEmpty)
+                              doc['uploaderName'] != null &&
+                              (doc['uploaderName'] as String).trim().isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 8.0),
-                              child: Text(
-                                'Feltöltő: ${doc!['uploaderName']}',
-                                style: TextStyle(
-                                  color: AppTheme.textColor,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Feltöltő: ${doc['uploaderName']}',
+                                      style: TextStyle(
+                                        color: AppTheme.textColor,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // circle avatar from user settings if set (after name)
+                                  CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: Colors.grey.shade800,
+                                    backgroundImage: _avatarBase64 != null
+                                        ? MemoryImage(
+                                            base64Decode(_avatarBase64!),
+                                          )
+                                        : null,
+                                    child: _avatarBase64 == null
+                                        ? const Icon(Icons.person)
+                                        : null,
+                                  ),
+                                ],
                               ),
                             ),
                           // header removed per UX request
