@@ -86,10 +86,11 @@ class _FilterState extends State<Filter> {
     _minFrac = ((_weightRange.start - _minKg) * 1000).round();
     _maxKg = _weightRange.end.toInt();
     _maxFrac = ((_weightRange.end - _maxKg) * 1000).round();
+    // Default indices 0 mean "not set"; actual values start from 1
     _selectedMonth = now.month;
     _selectedYear = now.year;
-    _selectedMonthIndex = _selectedMonth - 1;
-    _selectedYearIndex = _selectedYear - _yearStart;
+    _selectedMonthIndex = 0;
+    _selectedYearIndex = 0;
     _minKgIndex = _minKg;
     _minFracIndex = _minFrac;
     _maxKgIndex = _maxKg;
@@ -98,12 +99,11 @@ class _FilterState extends State<Filter> {
     _startMinuteIndex = startTime?.minute ?? now.minute;
     _endHourIndex = endTime?.hour ?? now.hour;
     _endMinuteIndex = endTime?.minute ?? now.minute;
-    _startTimeIndex =
-        (startTime?.hour ?? now.hour) * 60 + (startTime?.minute ?? now.minute);
-    _endTimeIndex =
-        (endTime?.hour ?? now.hour) * 60 + (endTime?.minute ?? now.minute);
-    _minWeightIndex = (_weightRange.start * 100).round();
-    _maxWeightIndex = (_weightRange.end * 100).round();
+    // Use 0 as placeholder index meaning "not set"; actual minutes and weights start at index 1
+    _startTimeIndex = 0;
+    _endTimeIndex = 0;
+    _minWeightIndex = 0;
+    _maxWeightIndex = 0;
   }
 
   double _opacityFor(
@@ -195,79 +195,94 @@ class _FilterState extends State<Filter> {
             // Top action buttons: Apply + optional Clear
             Builder(
               builder: (context) {
-                final bool hasAny =
-                    (selectedFishType != null &&
-                        selectedFishType!.trim().isNotEmpty) ||
-                    _weightRange.start > 0 ||
-                    _weightRange.end < maxWeight ||
-                    startTime != null ||
-                    endTime != null ||
-                    selectedDate != null;
+                // Show Apply & Clear only after the user has changed something (_hasChanged)
                 return Row(
+                  mainAxisAlignment: MainAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: AppButton(
-                        backgroundColor: AppTheme.primaryColor,
-                        onPressed: hasAny
-                            ? () {
-                                final filter = {
-                                  'species': selectedFishType,
-                                  'weightMin': _weightRange.start,
-                                  'weightMax': _weightRange.end,
-                                  'month': _selectedMonth,
-                                  'year': _selectedYear,
-                                  'startTime': startTime != null
-                                      ? {
-                                          'hour': startTime!.hour,
-                                          'minute': startTime!.minute,
-                                        }
-                                      : null,
-                                  'endTime': endTime != null
-                                      ? {
-                                          'hour': endTime!.hour,
-                                          'minute': endTime!.minute,
-                                        }
-                                      : null,
-                                  'date': selectedDate?.toIso8601String(),
-                                };
-                                Future.microtask(
-                                  () => FilterBus.instance.publish(filter),
-                                );
-                                Navigator.of(
-                                  context,
-                                ).pop({'appliedFilter': true});
-                              }
-                            : null,
-                        child: const Text('Szűrés alkalmazása'),
+                    if (_hasChanged) ...[
+                      SizedBox(
+                        width: 140,
+                        height: 40,
+                        child: AppButton(
+                          backgroundColor: AppTheme.primaryColor,
+                          onPressed: () {
+                            final filter = <String, dynamic>{};
+                            if (selectedFishType != null &&
+                                selectedFishType!.trim().isNotEmpty)
+                              filter['species'] = selectedFishType;
+                            if (_minWeightIndex != 0)
+                              filter['weightMin'] =
+                                  (_minWeightIndex - 1) / 10.0;
+                            if (_maxWeightIndex != 0)
+                              filter['weightMax'] =
+                                  (_maxWeightIndex - 1) / 10.0;
+                            if (_selectedMonthIndex != 0)
+                              filter['month'] = _selectedMonth;
+                            if (_selectedYearIndex != 0)
+                              filter['year'] = _selectedYear;
+                            if (startTime != null)
+                              filter['startTime'] = {
+                                'hour': startTime!.hour,
+                                'minute': startTime!.minute,
+                              };
+                            if (endTime != null)
+                              filter['endTime'] = {
+                                'hour': endTime!.hour,
+                                'minute': endTime!.minute,
+                              };
+                            if (selectedDate != null)
+                              filter['date'] = selectedDate!.toIso8601String();
+                            Future.microtask(
+                              () => FilterBus.instance.publish(
+                                filter.isEmpty ? null : filter,
+                              ),
+                            );
+                            Navigator.of(context).pop({'appliedFilter': true});
+                          },
+                          child: const Center(
+                            child: Text(
+                              'Szűrés alkalmazása',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _hasChanged
-                          ? AppButton(
-                              backgroundColor: Colors.red.shade600,
-                              onPressed: () {
-                                Future.microtask(
-                                  () => FilterBus.instance.publish(null),
-                                );
-                                setState(() {
-                                  selectedFishType = null;
-                                  _weightRange = const RangeValues(0, 10);
-                                  startTime = null;
-                                  endTime = null;
-                                  selectedDate = null;
-                                  _hasChanged = false;
-                                });
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Szűrők törölve'),
-                                  ),
-                                );
-                              },
-                              child: const Text('Szűrő kikapcsolása'),
-                            )
-                          : const SizedBox.shrink(),
-                    ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 140,
+                        height: 40,
+                        child: AppButton(
+                          backgroundColor: Colors.red.shade600,
+                          onPressed: () {
+                            Future.microtask(
+                              () => FilterBus.instance.publish(null),
+                            );
+                            setState(() {
+                              selectedFishType = null;
+                              _weightRange = const RangeValues(0, 10);
+                              startTime = null;
+                              endTime = null;
+                              selectedDate = null;
+                              _hasChanged = false;
+                              _minWeightIndex = 0;
+                              _maxWeightIndex = 0;
+                              _selectedMonthIndex = 0;
+                              _selectedYearIndex = 0;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Szűrők törölve')),
+                            );
+                          },
+                          child: const Center(
+                            child: Text(
+                              'Szűrő törlése',
+                              style: TextStyle(fontSize: 14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ] else
+                      const SizedBox.shrink(),
                   ],
                 );
               },
@@ -313,20 +328,27 @@ class _FilterState extends State<Filter> {
                                         FixedExtentScrollController(
                                           initialItem: math.min(
                                             math.max(_minWeightIndex, 0),
-                                            (maxWeight * 100).toInt(),
+                                            (maxWeight * 10).toInt() + 1,
                                           ),
                                         ),
                                     onSelectedItemChanged: (i) => setState(() {
                                       _minWeightIndex = i;
-                                      final val = i / 100.0;
-                                      _weightRange = RangeValues(
-                                        val,
-                                        _weightRange.end,
-                                      );
+                                      if (i == 0) {
+                                        _weightRange = RangeValues(
+                                          0,
+                                          _weightRange.end,
+                                        );
+                                      } else {
+                                        final val = (i - 1) / 10.0;
+                                        _weightRange = RangeValues(
+                                          val,
+                                          _weightRange.end,
+                                        );
+                                      }
                                       _hasChanged = true;
                                     }),
                                     children: List<Widget>.generate(
-                                      (maxWeight * 100).toInt() + 1,
+                                      (maxWeight * 10).toInt() + 1 + 1,
                                       (i) {
                                         final diff = (i - _minWeightIndex)
                                             .abs();
@@ -341,9 +363,56 @@ class _FilterState extends State<Filter> {
                                           minOpacity: 0.06,
                                         );
                                         final scale = _scaleFor(diff);
-                                        final kg = (i / 100.0).toStringAsFixed(
-                                          2,
-                                        );
+                                        if (i == 0) {
+                                          return Center(
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 6,
+                                                    horizontal: 10,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: AppTheme.surfaceColor
+                                                    .withOpacity(
+                                                      _opacityFor(
+                                                        diff,
+                                                        falloff: 6.0,
+                                                        minOpacity: 0.02,
+                                                      ),
+                                                    ),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: AppTheme.textColor
+                                                      .withOpacity(
+                                                        borderOpacity,
+                                                      ),
+                                                  width: diff == 0 ? 1.6 : 0.9,
+                                                ),
+                                              ),
+                                              child: Transform.scale(
+                                                scale: scale,
+                                                child: Text(
+                                                  'Nincs beállítva',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: diff == 0
+                                                        ? Colors.white
+                                                        : AppTheme.textColor
+                                                              .withOpacity(
+                                                                opacity,
+                                                              ),
+                                                    fontWeight: diff == 0
+                                                        ? FontWeight.w700
+                                                        : FontWeight.normal,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                        final kg = ((i - 1) / 10.0)
+                                            .toStringAsFixed(1);
                                         return Center(
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(
@@ -394,7 +463,9 @@ class _FilterState extends State<Filter> {
                               onPressed: () =>
                                   setState(() => _showWeightMinPicker = true),
                               child: Text(
-                                'Min: ${_weightRange.start.toStringAsFixed(2)} kg',
+                                _minWeightIndex == 0
+                                    ? 'Min: -'
+                                    : 'Min: ${((_minWeightIndex - 1) / 10.0).toStringAsFixed(1)} kg',
                               ),
                             ),
                     ],
@@ -432,20 +503,27 @@ class _FilterState extends State<Filter> {
                                         FixedExtentScrollController(
                                           initialItem: math.min(
                                             math.max(_maxWeightIndex, 0),
-                                            (maxWeight * 100).toInt(),
+                                            (maxWeight * 10).toInt() + 1,
                                           ),
                                         ),
                                     onSelectedItemChanged: (i) => setState(() {
                                       _maxWeightIndex = i;
-                                      final val = i / 100.0;
-                                      _weightRange = RangeValues(
-                                        _weightRange.start,
-                                        val,
-                                      );
+                                      if (i == 0) {
+                                        _weightRange = RangeValues(
+                                          _weightRange.start,
+                                          maxWeight,
+                                        );
+                                      } else {
+                                        final val = (i - 1) / 10.0;
+                                        _weightRange = RangeValues(
+                                          _weightRange.start,
+                                          val,
+                                        );
+                                      }
                                       _hasChanged = true;
                                     }),
                                     children: List<Widget>.generate(
-                                      (maxWeight * 100).toInt() + 1,
+                                      (maxWeight * 10).toInt() + 1 + 1,
                                       (i) {
                                         final diff = (i - _maxWeightIndex)
                                             .abs();
@@ -460,9 +538,56 @@ class _FilterState extends State<Filter> {
                                           minOpacity: 0.06,
                                         );
                                         final scale = _scaleFor(diff);
-                                        final kg = (i / 100.0).toStringAsFixed(
-                                          2,
-                                        );
+                                        if (i == 0) {
+                                          return Center(
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 6,
+                                                    horizontal: 10,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: AppTheme.surfaceColor
+                                                    .withOpacity(
+                                                      _opacityFor(
+                                                        diff,
+                                                        falloff: 6.0,
+                                                        minOpacity: 0.02,
+                                                      ),
+                                                    ),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: AppTheme.textColor
+                                                      .withOpacity(
+                                                        borderOpacity,
+                                                      ),
+                                                  width: diff == 0 ? 1.6 : 0.9,
+                                                ),
+                                              ),
+                                              child: Transform.scale(
+                                                scale: scale,
+                                                child: Text(
+                                                  'Nincs beállítva',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: diff == 0
+                                                        ? Colors.white
+                                                        : AppTheme.textColor
+                                                              .withOpacity(
+                                                                opacity,
+                                                              ),
+                                                    fontWeight: diff == 0
+                                                        ? FontWeight.w700
+                                                        : FontWeight.normal,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                        final kg = ((i - 1) / 10.0)
+                                            .toStringAsFixed(1);
                                         return Center(
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(
@@ -513,7 +638,9 @@ class _FilterState extends State<Filter> {
                               onPressed: () =>
                                   setState(() => _showWeightMaxPicker = true),
                               child: Text(
-                                'Max: ${_weightRange.end.toStringAsFixed(2)} kg',
+                                _maxWeightIndex == 0
+                                    ? 'Max: -'
+                                    : 'Max: ${((_maxWeightIndex - 1) / 10.0).toStringAsFixed(1)} kg',
                               ),
                             ),
                     ],
@@ -559,10 +686,11 @@ class _FilterState extends State<Filter> {
                           ),
                           onSelectedItemChanged: (i) => setState(() {
                             _selectedMonth = i + 1;
-                            _selectedMonthIndex = i;
+                            _selectedMonthIndex = i + 1;
                             _hasChanged = true;
                           }),
-                          children: List<Widget>.generate(12, (i) {
+                          // index 0 = placeholder, months 1..12
+                          children: List<Widget>.generate(12 + 1, (i) {
                             final names = [
                               'Január',
                               'Február',
@@ -601,6 +729,36 @@ class _FilterState extends State<Filter> {
                                   ? FontWeight.w700
                                   : FontWeight.normal,
                             );
+                            if (i == 0) {
+                              return Center(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 6,
+                                    horizontal: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.surfaceColor.withOpacity(
+                                      bgOpacity,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: AppTheme.textColor.withOpacity(
+                                        borderOpacity,
+                                      ),
+                                      width: diff == 0 ? 1.4 : 0.9,
+                                    ),
+                                  ),
+                                  child: Transform.scale(
+                                    scale: scale,
+                                    child: Text(
+                                      'Nincs beállítva',
+                                      style: style,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+                            final idx = i - 1;
                             return Center(
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
@@ -621,7 +779,7 @@ class _FilterState extends State<Filter> {
                                 ),
                                 child: Transform.scale(
                                   scale: scale,
-                                  child: Text(names[i], style: style),
+                                  child: Text(names[idx], style: style),
                                 ),
                               ),
                             );
@@ -659,12 +817,13 @@ class _FilterState extends State<Filter> {
                             initialItem: _selectedYearIndex,
                           ),
                           onSelectedItemChanged: (i) => setState(() {
-                            _selectedYear = _yearStart + i;
+                            _selectedYear = _yearStart + (i - 1);
                             _selectedYearIndex = i;
                             _hasChanged = true;
                           }),
+                          // index 0 = placeholder, years start at index 1
                           children: List<Widget>.generate(
-                            DateTime.now().year - _yearStart + 1,
+                            (DateTime.now().year - _yearStart + 1) + 1,
                             (i) {
                               final diff = (i - _selectedYearIndex).abs();
                               final opacity = _opacityFor(
@@ -683,6 +842,44 @@ class _FilterState extends State<Filter> {
                                 minOpacity: 0.06,
                               );
                               final scale = _scaleFor(diff);
+                              if (i == 0) {
+                                return Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 6,
+                                      horizontal: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.surfaceColor.withOpacity(
+                                        bgOpacity,
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: AppTheme.textColor.withOpacity(
+                                          borderOpacity,
+                                        ),
+                                        width: diff == 0 ? 1.6 : 0.9,
+                                      ),
+                                    ),
+                                    child: Transform.scale(
+                                      scale: scale,
+                                      child: Text(
+                                        'Nincs beállítva',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: AppTheme.textColor.withOpacity(
+                                            opacity,
+                                          ),
+                                          fontWeight: diff == 0
+                                              ? FontWeight.w700
+                                              : FontWeight.normal,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                              final yearVal = _yearStart + (i - 1);
                               return Center(
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
@@ -704,7 +901,7 @@ class _FilterState extends State<Filter> {
                                   child: Transform.scale(
                                     scale: scale,
                                     child: Text(
-                                      '${_yearStart + i}',
+                                      '$yearVal',
                                       style: TextStyle(
                                         fontSize: 16,
                                         color: AppTheme.textColor.withOpacity(
@@ -762,79 +959,134 @@ class _FilterState extends State<Filter> {
                                         FixedExtentScrollController(
                                           initialItem: math.min(
                                             math.max(_startTimeIndex, 0),
-                                            24 * 60 - 1,
+                                            24 * 60,
                                           ),
                                         ),
                                     onSelectedItemChanged: (i) => setState(() {
                                       _startTimeIndex = i;
-                                      startTime = TimeOfDay(
-                                        hour: i ~/ 60,
-                                        minute: i % 60,
-                                      );
+                                      if (i == 0) {
+                                        startTime = null;
+                                      } else {
+                                        final minutes = i - 1;
+                                        startTime = TimeOfDay(
+                                          hour: minutes ~/ 60,
+                                          minute: minutes % 60,
+                                        );
+                                      }
                                       _hasChanged = true;
                                     }),
-                                    children: List<Widget>.generate(24 * 60, (
-                                      i,
-                                    ) {
-                                      final diff = (i - _startTimeIndex).abs();
-                                      final opacity = _opacityFor(
-                                        diff,
-                                        falloff: 6.0,
-                                        minOpacity: 0.12,
-                                      );
-                                      final borderOpacity = _opacityFor(
-                                        diff,
-                                        falloff: 6.0,
-                                        minOpacity: 0.06,
-                                      );
-                                      final scale = _scaleFor(diff);
-                                      final hh = (i ~/ 60).toString().padLeft(
-                                        2,
-                                        '0',
-                                      );
-                                      final mm = (i % 60).toString().padLeft(
-                                        2,
-                                        '0',
-                                      );
-                                      return Center(
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 4,
-                                            horizontal: 8,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: diff == 0
-                                                ? AppTheme.surfaceColor
-                                                      .withOpacity(0.06)
-                                                : Colors.transparent,
-                                            borderRadius: BorderRadius.circular(
-                                              8,
+                                    children: List<Widget>.generate(
+                                      24 * 60 + 1,
+                                      (i) {
+                                        final diff = (i - _startTimeIndex)
+                                            .abs();
+                                        final opacity = _opacityFor(
+                                          diff,
+                                          falloff: 6.0,
+                                          minOpacity: 0.12,
+                                        );
+                                        final borderOpacity = _opacityFor(
+                                          diff,
+                                          falloff: 6.0,
+                                          minOpacity: 0.06,
+                                        );
+                                        final scale = _scaleFor(diff);
+                                        if (i == 0) {
+                                          return Center(
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 6,
+                                                    horizontal: 10,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: AppTheme.surfaceColor
+                                                    .withOpacity(
+                                                      _opacityFor(
+                                                        diff,
+                                                        falloff: 6.0,
+                                                        minOpacity: 0.02,
+                                                      ),
+                                                    ),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: AppTheme.textColor
+                                                      .withOpacity(
+                                                        borderOpacity,
+                                                      ),
+                                                  width: diff == 0 ? 1.6 : 0.9,
+                                                ),
+                                              ),
+                                              child: Transform.scale(
+                                                scale: scale,
+                                                child: Text(
+                                                  'Nincs beállítva',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: diff == 0
+                                                        ? Colors.white
+                                                        : AppTheme.textColor
+                                                              .withOpacity(
+                                                                opacity,
+                                                              ),
+                                                    fontWeight: diff == 0
+                                                        ? FontWeight.w700
+                                                        : FontWeight.normal,
+                                                  ),
+                                                ),
+                                              ),
                                             ),
-                                            border: Border.all(
-                                              color: AppTheme.textColor
-                                                  .withOpacity(borderOpacity),
-                                              width: diff == 0 ? 1.6 : 0.9,
+                                          );
+                                        }
+                                        final minutes = i - 1;
+                                        final hh = (minutes ~/ 60)
+                                            .toString()
+                                            .padLeft(2, '0');
+                                        final mm = (minutes % 60)
+                                            .toString()
+                                            .padLeft(2, '0');
+                                        return Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 4,
+                                              horizontal: 8,
                                             ),
-                                          ),
-                                          child: Transform.scale(
-                                            scale: scale,
-                                            child: Text(
-                                              '$hh:$mm',
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: diff == 0
-                                                    ? Colors.white
-                                                    : AppTheme.textColor
-                                                          .withOpacity(opacity),
-                                                fontWeight: diff == 0
-                                                    ? FontWeight.w700
-                                                    : FontWeight.normal,
+                                            decoration: BoxDecoration(
+                                              color: diff == 0
+                                                  ? AppTheme.surfaceColor
+                                                        .withOpacity(0.06)
+                                                  : Colors.transparent,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: AppTheme.textColor
+                                                    .withOpacity(borderOpacity),
+                                                width: diff == 0 ? 1.6 : 0.9,
+                                              ),
+                                            ),
+                                            child: Transform.scale(
+                                              scale: scale,
+                                              child: Text(
+                                                '$hh:$mm',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: diff == 0
+                                                      ? Colors.white
+                                                      : AppTheme.textColor
+                                                            .withOpacity(
+                                                              opacity,
+                                                            ),
+                                                  fontWeight: diff == 0
+                                                      ? FontWeight.w700
+                                                      : FontWeight.normal,
+                                                ),
                                               ),
                                             ),
                                           ),
-                                        ),
-                                      );
-                                    }),
+                                        );
+                                      },
+                                    ),
                                   ),
                                 ),
                               ),
@@ -894,79 +1146,133 @@ class _FilterState extends State<Filter> {
                                         FixedExtentScrollController(
                                           initialItem: math.min(
                                             math.max(_endTimeIndex, 0),
-                                            24 * 60 - 1,
+                                            24 * 60,
                                           ),
                                         ),
                                     onSelectedItemChanged: (i) => setState(() {
                                       _endTimeIndex = i;
-                                      endTime = TimeOfDay(
-                                        hour: i ~/ 60,
-                                        minute: i % 60,
-                                      );
+                                      if (i == 0) {
+                                        endTime = null;
+                                      } else {
+                                        final minutes = i - 1;
+                                        endTime = TimeOfDay(
+                                          hour: minutes ~/ 60,
+                                          minute: minutes % 60,
+                                        );
+                                      }
                                       _hasChanged = true;
                                     }),
-                                    children: List<Widget>.generate(24 * 60, (
-                                      i,
-                                    ) {
-                                      final diff = (i - _endTimeIndex).abs();
-                                      final opacity = _opacityFor(
-                                        diff,
-                                        falloff: 6.0,
-                                        minOpacity: 0.12,
-                                      );
-                                      final borderOpacity = _opacityFor(
-                                        diff,
-                                        falloff: 6.0,
-                                        minOpacity: 0.06,
-                                      );
-                                      final scale = _scaleFor(diff);
-                                      final hh = (i ~/ 60).toString().padLeft(
-                                        2,
-                                        '0',
-                                      );
-                                      final mm = (i % 60).toString().padLeft(
-                                        2,
-                                        '0',
-                                      );
-                                      return Center(
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 4,
-                                            horizontal: 8,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: diff == 0
-                                                ? AppTheme.surfaceColor
-                                                      .withOpacity(0.06)
-                                                : Colors.transparent,
-                                            borderRadius: BorderRadius.circular(
-                                              8,
+                                    children: List<Widget>.generate(
+                                      24 * 60 + 1,
+                                      (i) {
+                                        final diff = (i - _endTimeIndex).abs();
+                                        final opacity = _opacityFor(
+                                          diff,
+                                          falloff: 6.0,
+                                          minOpacity: 0.12,
+                                        );
+                                        final borderOpacity = _opacityFor(
+                                          diff,
+                                          falloff: 6.0,
+                                          minOpacity: 0.06,
+                                        );
+                                        final scale = _scaleFor(diff);
+                                        if (i == 0) {
+                                          return Center(
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 6,
+                                                    horizontal: 10,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: AppTheme.surfaceColor
+                                                    .withOpacity(
+                                                      _opacityFor(
+                                                        diff,
+                                                        falloff: 6.0,
+                                                        minOpacity: 0.02,
+                                                      ),
+                                                    ),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                border: Border.all(
+                                                  color: AppTheme.textColor
+                                                      .withOpacity(
+                                                        borderOpacity,
+                                                      ),
+                                                  width: diff == 0 ? 1.6 : 0.9,
+                                                ),
+                                              ),
+                                              child: Transform.scale(
+                                                scale: scale,
+                                                child: Text(
+                                                  'Nincs beállítva',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    color: diff == 0
+                                                        ? Colors.white
+                                                        : AppTheme.textColor
+                                                              .withOpacity(
+                                                                opacity,
+                                                              ),
+                                                    fontWeight: diff == 0
+                                                        ? FontWeight.w700
+                                                        : FontWeight.normal,
+                                                  ),
+                                                ),
+                                              ),
                                             ),
-                                            border: Border.all(
-                                              color: AppTheme.textColor
-                                                  .withOpacity(borderOpacity),
-                                              width: diff == 0 ? 1.6 : 0.9,
+                                          );
+                                        }
+                                        final minutes = i - 1;
+                                        final hh = (minutes ~/ 60)
+                                            .toString()
+                                            .padLeft(2, '0');
+                                        final mm = (minutes % 60)
+                                            .toString()
+                                            .padLeft(2, '0');
+                                        return Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 4,
+                                              horizontal: 8,
                                             ),
-                                          ),
-                                          child: Transform.scale(
-                                            scale: scale,
-                                            child: Text(
-                                              '$hh:$mm',
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                color: diff == 0
-                                                    ? Colors.white
-                                                    : AppTheme.textColor
-                                                          .withOpacity(opacity),
-                                                fontWeight: diff == 0
-                                                    ? FontWeight.w700
-                                                    : FontWeight.normal,
+                                            decoration: BoxDecoration(
+                                              color: diff == 0
+                                                  ? AppTheme.surfaceColor
+                                                        .withOpacity(0.06)
+                                                  : Colors.transparent,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: AppTheme.textColor
+                                                    .withOpacity(borderOpacity),
+                                                width: diff == 0 ? 1.6 : 0.9,
+                                              ),
+                                            ),
+                                            child: Transform.scale(
+                                              scale: scale,
+                                              child: Text(
+                                                '$hh:$mm',
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  color: diff == 0
+                                                      ? Colors.white
+                                                      : AppTheme.textColor
+                                                            .withOpacity(
+                                                              opacity,
+                                                            ),
+                                                  fontWeight: diff == 0
+                                                      ? FontWeight.w700
+                                                      : FontWeight.normal,
+                                                ),
                                               ),
                                             ),
                                           ),
-                                        ),
-                                      );
-                                    }),
+                                        );
+                                      },
+                                    ),
                                   ),
                                 ),
                               ),

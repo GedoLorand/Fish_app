@@ -21,6 +21,8 @@ import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:login_fish_app/homepage/GalleryScreen/Gallery.dart';
 import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
 import 'package:login_fish_app/homepage/MapScreen/photo_marker.dart';
+import 'package:login_fish_app/homepage/FilterScreen/filter.dart'
+    as filter_screen;
 import 'package:login_fish_app/services/filter_bus.dart';
 
 String _formatWeight(dynamic w) {
@@ -50,7 +52,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   bool _filtersActive = false;
   late final AnimationController _hintAnimController;
   late final Animation<double> _hintOpacity;
-  bool _showFilterHint = false;
+  bool _showPanelPulse = false;
+  bool _showArrowHint = false;
+  bool _suppressNextClearHint = false;
   File? _imageFile;
   bool _uploading = false;
   Timer? _locationTimer;
@@ -72,7 +76,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     _determinePosition();
     _hintAnimController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(seconds: 4),
     );
     _hintOpacity = Tween<double>(begin: 0.4, end: 1.0).animate(
       CurvedAnimation(parent: _hintAnimController, curve: Curves.easeInOut),
@@ -126,20 +130,42 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           _currentFilter = filter;
           if (filter == null) {
             _filtersActive = false;
-          } else {
-            _filtersActive = true;
-            // show animated hint pointing to the clear-filter FAB
-            _showFilterHint = true;
-            _hintAnimController.repeat(reverse: true);
-            // auto-hide after a short period
-            Future.delayed(const Duration(seconds: 6), () {
-              if (!mounted) return;
-              setState(() {
-                _showFilterHint = false;
-              });
+            _showPanelPulse = false;
+            // If this clear was triggered locally by the clear FAB, suppress
+            // the automatic arrow hint once. Otherwise show a short arrow pulse.
+            if (_suppressNextClearHint) {
+              _suppressNextClearHint = false;
+              _showArrowHint = false;
               try {
                 _hintAnimController.stop();
               } catch (_) {}
+            } else {
+              _showArrowHint = true;
+              _hintAnimController.repeat(reverse: true);
+              Future.delayed(const Duration(seconds: 3), () {
+                if (!mounted) return;
+                setState(() {
+                  _showArrowHint = false;
+                });
+                try {
+                  _hintAnimController.stop();
+                } catch (_) {}
+              });
+            }
+          } else {
+            _filtersActive = true;
+            // show panel pulse until filters change
+            _showPanelPulse = true;
+            // also show a short arrow hint pointing to the clear-filter FAB
+            // so the user sees how to remove filters immediately after apply
+            _showArrowHint = true;
+            _hintAnimController.repeat(reverse: true);
+            // hide only the arrow after a short period but keep the panel pulse
+            Future.delayed(const Duration(seconds: 4), () {
+              if (!mounted) return;
+              setState(() {
+                _showArrowHint = false;
+              });
             });
           }
         });
@@ -148,6 +174,71 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   Map<String, dynamic>? _currentFilter;
+
+  String _formatTimeMap(Map? t) {
+    if (t == null) return '-';
+    try {
+      final h = (t['hour'] as int?) ?? 0;
+      final m = (t['minute'] as int?) ?? 0;
+      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return '-';
+    }
+  }
+
+  String _buildFilterSummary() {
+    if (_currentFilter == null) return '';
+    final parts = <String>[];
+    try {
+      final sp = _currentFilter!['species'] as String?;
+      if (sp != null && sp.trim().isNotEmpty) parts.add(sp);
+      final wmin = _currentFilter!['weightMin'];
+      final wmax = _currentFilter!['weightMax'];
+      if (wmin != null || wmax != null) {
+        final a = wmin?.toString() ?? '-';
+        final b = wmax?.toString() ?? '-';
+        parts.add('Súly: $a—$b kg');
+      }
+      final month = _currentFilter!['month'];
+      final year = _currentFilter!['year'];
+      if (month != null || year != null)
+        parts.add('Idő: ${month ?? '-'} / ${year ?? '-'}');
+      final st = _currentFilter!['startTime'];
+      final et = _currentFilter!['endTime'];
+      if (st != null || et != null)
+        parts.add('Óra: ${_formatTimeMap(st)}—${_formatTimeMap(et)}');
+      final date = _currentFilter!['date'] as String?;
+      if (date != null) parts.add('Dátum');
+    } catch (_) {}
+    return parts.join(' · ');
+  }
+
+  List<String> _buildFilterParts() {
+    if (_currentFilter == null) return [];
+    final parts = <String>[];
+    try {
+      final sp = _currentFilter!['species'] as String?;
+      if (sp != null && sp.trim().isNotEmpty) parts.add(sp);
+      final wmin = _currentFilter!['weightMin'];
+      final wmax = _currentFilter!['weightMax'];
+      if (wmin != null || wmax != null) {
+        final a = wmin?.toString() ?? '-';
+        final b = wmax?.toString() ?? '-';
+        parts.add('Súly: $a—$b kg');
+      }
+      final month = _currentFilter!['month'];
+      final year = _currentFilter!['year'];
+      if (month != null || year != null)
+        parts.add('Idő: ${month ?? '-'} / ${year ?? '-'}');
+      final st = _currentFilter!['startTime'];
+      final et = _currentFilter!['endTime'];
+      if (st != null || et != null)
+        parts.add('Óra: ${_formatTimeMap(st)}—${_formatTimeMap(et)}');
+      final date = _currentFilter!['date'] as String?;
+      if (date != null) parts.add('Dátum: $date');
+    } catch (_) {}
+    return parts;
+  }
 
   // Fallback fetch: try top-level /images and per-user /users/{uid}/images when
   // collectionGroup queries are not permitted by rules. Merge results and avoid duplicates.
@@ -1384,6 +1475,60 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 ),
             ],
           ),
+          // Left-side active filters panel (under header)
+          if (_currentFilter != null)
+            Positioned(
+              left: MediaQuery.of(context).padding.left + 8,
+              top: MediaQuery.of(context).padding.top + 8,
+              child: GestureDetector(
+                onTap: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const filter_screen.Filter(),
+                    ),
+                  );
+                },
+                child: FadeTransition(
+                  opacity: _showPanelPulse
+                      ? _hintOpacity
+                      : AlwaysStoppedAnimation(1.0),
+                  child: Card(
+                    color: AppTheme.surfaceColor.withOpacity(0.5),
+                    elevation: 6,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Container(
+                      width: 150,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 6,
+                        horizontal: 8,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ..._buildFilterParts().map(
+                            (p) => Padding(
+                              padding: const EdgeInsets.only(bottom: 4.0),
+                              child: Text(
+                                p,
+                                style: TextStyle(
+                                  color: AppTheme.textColor,
+                                  fontSize: 12,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           if (!_locationLoaded || !_mapReady)
             const Positioned.fill(
               child: Align(
@@ -1418,14 +1563,13 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     if (res is Map && res['showOnlyMine'] == true) {
                       setState(() {
                         _filterOnlyMine = true;
-                        // show animated hint pointing to the clear-filter FAB
-                        _showFilterHint = true;
+                        // show arrow hint pointing to the clear-filter FAB for a short period
+                        _showArrowHint = true;
                         _hintAnimController.repeat(reverse: true);
-                        // auto-hide after a short period
                         Future.delayed(const Duration(seconds: 6), () {
                           if (!mounted) return;
                           setState(() {
-                            _showFilterHint = false;
+                            _showArrowHint = false;
                           });
                           try {
                             _hintAnimController.stop();
@@ -1462,8 +1606,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                       _filtersActive = false;
                       _currentFilter = null;
                     });
-                    // notify other screens that filters were cleared
+                    // notify other screens that filters were cleared; suppress
+                    // the automatic clear hint for this user-initiated action
                     try {
+                      _suppressNextClearHint = true;
                       FilterBus.instance.publish(null);
                     } catch (_) {}
                   },
@@ -1472,7 +1618,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ),
             ),
           // Hint overlay pointing to the clear-filter FAB when active
-          if (_showFilterHint)
+          if (_showArrowHint)
             Positioned(
               top: 84,
               right: 68,
