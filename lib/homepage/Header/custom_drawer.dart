@@ -3,6 +3,7 @@ import 'package:login_fish_app/backend-login/login.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:login_fish_app/homepage/GalleryScreen/Gallery.dart';
 import 'package:login_fish_app/homepage/FilterScreen/filter.dart';
+import 'package:login_fish_app/homepage/AIScreen/ai_assistant.dart';
 import 'package:login_fish_app/services/filter_bus.dart';
 //import 'package:flutterfishapp/UserScreen/user.dart';
 import 'package:login_fish_app/homepage/SettingsScreen/settings.dart';
@@ -56,6 +57,20 @@ class CustomDrawer extends StatelessWidget {
                         FilterBus.instance.publish(null);
                       }
                     } catch (_) {}
+                  },
+                ),
+                Divider(color: AppTheme.textColor.withOpacity(0.3)),
+                _buildListTile(
+                  icon: Icons.smart_toy,
+                  text: 'AI Asszisztens',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AIAssistantScreen(),
+                      ),
+                    );
                   },
                 ),
                 Divider(color: AppTheme.textColor.withOpacity(0.3)),

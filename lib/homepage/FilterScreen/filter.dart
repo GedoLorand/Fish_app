@@ -9,7 +9,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:login_fish_app/services/filter_bus.dart';
 
 class Filter extends StatefulWidget {
-  const Filter({Key? key}) : super(key: key);
+  final bool restrictToCurrentUser;
+
+  const Filter({Key? key, this.restrictToCurrentUser = false})
+    : super(key: key);
 
   @override
   State<Filter> createState() => _FilterState();
@@ -18,6 +21,7 @@ class Filter extends StatefulWidget {
 class _FilterState extends State<Filter> {
   String? selectedFishType;
   final TextEditingController weightController = TextEditingController();
+  TextEditingController speciesController = TextEditingController();
 
   TimeOfDay? startTime;
   TimeOfDay? endTime;
@@ -177,10 +181,21 @@ class _FilterState extends State<Filter> {
                 if (q.isEmpty) return const Iterable<String>.empty();
                 return source.where((s) => s.toLowerCase().contains(q));
               },
-              onSelected: (s) => setState(() => selectedFishType = s),
+              onSelected: (s) => setState(() {
+                selectedFishType = s;
+                try {
+                  speciesController.text = s;
+                } catch (_) {}
+              }),
               fieldViewBuilder:
                   (context, controller, focusNode, onEditingComplete) {
-                    controller.text = selectedFishType ?? controller.text;
+                    // capture the Autocomplete-provided controller so we can
+                    // read the typed value when Apply is pressed
+                    speciesController = controller;
+                    if (selectedFishType != null &&
+                        selectedFishType!.isNotEmpty) {
+                      controller.text = selectedFishType!;
+                    }
                     return TextField(
                       controller: controller,
                       focusNode: focusNode,
@@ -191,6 +206,8 @@ class _FilterState extends State<Filter> {
                     );
                   },
             ),
+            const SizedBox(height: 8),
+            const SizedBox(height: 8),
             const SizedBox(height: 12),
             // Top action buttons: Apply + optional Clear
             Builder(
@@ -206,10 +223,34 @@ class _FilterState extends State<Filter> {
                         child: AppButton(
                           backgroundColor: AppTheme.primaryColor,
                           onPressed: () {
+                            // resolve species from typed input if needed
                             final filter = <String, dynamic>{};
-                            if (selectedFishType != null &&
-                                selectedFishType!.trim().isNotEmpty)
-                              filter['species'] = selectedFishType;
+                            final typed = speciesController.text.trim();
+                            String? resolvedSpecies = selectedFishType;
+                            if ((resolvedSpecies == null ||
+                                    resolvedSpecies.trim().isEmpty) &&
+                                typed.isNotEmpty) {
+                              // try to pick nearest from suggestions
+                              final source = dynamicFishSuggestions.isNotEmpty
+                                  ? dynamicFishSuggestions
+                                  : fishTypes;
+                              final low = typed.toLowerCase();
+                              // prefer startsWith, then contains
+                              String? found = source.firstWhere(
+                                (s) => s.toLowerCase().startsWith(low),
+                                orElse: () => '',
+                              );
+                              if (found.isEmpty) {
+                                found = source.firstWhere(
+                                  (s) => s.toLowerCase().contains(low),
+                                  orElse: () => '',
+                                );
+                              }
+                              if (found.isNotEmpty) resolvedSpecies = found;
+                            }
+                            if (resolvedSpecies != null &&
+                                resolvedSpecies.trim().isNotEmpty)
+                              filter['species'] = resolvedSpecies;
                             if (_minWeightIndex != 0)
                               filter['weightMin'] =
                                   (_minWeightIndex - 1) / 10.0;
@@ -232,6 +273,9 @@ class _FilterState extends State<Filter> {
                               };
                             if (selectedDate != null)
                               filter['date'] = selectedDate!.toIso8601String();
+                            if (widget.restrictToCurrentUser) {
+                              filter['ownerOnly'] = true;
+                            }
                             Future.microtask(
                               () => FilterBus.instance.publish(
                                 filter.isEmpty ? null : filter,

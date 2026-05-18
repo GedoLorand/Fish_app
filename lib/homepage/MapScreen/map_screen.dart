@@ -23,6 +23,7 @@ import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
 import 'package:login_fish_app/homepage/MapScreen/photo_marker.dart';
 import 'package:login_fish_app/homepage/FilterScreen/filter.dart'
     as filter_screen;
+import 'package:login_fish_app/homepage/AIScreen/ai_assistant.dart';
 import 'package:login_fish_app/services/filter_bus.dart';
 
 String _formatWeight(dynamic w) {
@@ -127,8 +128,18 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       try {
         if (!mounted) return;
         setState(() {
-          _currentFilter = filter;
-          if (filter == null) {
+          // If the incoming filter requests owner-only results, set the
+          // local _filterOnlyMine flag and remove the marker from the
+          // stored filter so UI summaries don't show it.
+          if (filter != null && filter['ownerOnly'] == true) {
+            _filterOnlyMine = true;
+            final copy = Map<String, dynamic>.from(filter);
+            copy.remove('ownerOnly');
+            _currentFilter = copy;
+          } else {
+            _currentFilter = filter;
+          }
+          if (_currentFilter == null) {
             _filtersActive = false;
             _showPanelPulse = false;
             // If this clear was triggered locally by the clear FAB, suppress
@@ -171,6 +182,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         });
       } catch (_) {}
     });
+    // Ensure hint is not running initially
+    try {
+      _hintAnimController.stop();
+    } catch (_) {}
   }
 
   Map<String, dynamic>? _currentFilter;
@@ -1587,10 +1602,39 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
+          // AI Assistant button placed between Gallery and Clear-filter
+          Positioned(
+            // place with larger spacing between gallery (top:16) and clear-filter (now top:112)
+            top: 64,
+            right: 16,
+            child: SafeArea(
+              child: FloatingActionButton(
+                heroTag: 'ai_assist_fab',
+                mini: true,
+                backgroundColor: AppTheme.primaryColor,
+                shape: const CircleBorder(
+                  side: BorderSide(color: Colors.black, width: 2),
+                ),
+                onPressed: () async {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const AIAssistantScreen(),
+                    ),
+                  );
+                },
+                child: Image.asset(
+                  'assets/icon/chatbot.png',
+                  width: 22,
+                  height: 22,
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+          ),
           // Clear filter button when only-my-items or advanced filters are active
           if (_filterOnlyMine || _filtersActive)
             Positioned(
-              top: 80,
+              top: 112,
               right: 16,
               child: SafeArea(
                 child: FloatingActionButton(
@@ -1620,7 +1664,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           // Hint overlay pointing to the clear-filter FAB when active
           if (_showArrowHint)
             Positioned(
-              top: 84,
+              top: 116,
               right: 68,
               child: FadeTransition(
                 opacity: _hintOpacity,
@@ -1686,8 +1730,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
-    // Ensure hint is not running initially
-    _hintAnimController.stop();
   }
 
   @override

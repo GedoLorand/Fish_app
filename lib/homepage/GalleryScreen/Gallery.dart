@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
+import 'package:login_fish_app/homepage/FilterScreen/filter.dart' as filter_screen;
 
 class Gallery extends StatefulWidget {
   const Gallery({super.key});
@@ -142,7 +143,13 @@ class _GalleryState extends State<Gallery> {
                     ),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  onPressed: () {}, // Üres függvény most
+                  onPressed: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const filter_screen.Filter(restrictToCurrentUser: true),
+                      ),
+                    );
+                  },
                   child: Row(
                     children: [
                       Icon(Icons.filter_alt, color: AppTheme.primaryColor),
