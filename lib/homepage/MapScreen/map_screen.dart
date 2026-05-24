@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -17,6 +18,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:login_fish_app/homepage/MapScreen/metadata_dialog.dart';
 import 'package:login_fish_app/homepage/MapScreen/cluster_sheet.dart';
+import 'package:login_fish_app/homepage/EventScreen/event_screen.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:login_fish_app/homepage/GalleryScreen/Gallery.dart';
 import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
@@ -53,6 +55,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   bool _filtersActive = false;
   late final AnimationController _hintAnimController;
   late final Animation<double> _hintOpacity;
+  late final AnimationController _eventPulseController;
+  late final Animation<double> _eventPulseAnimation;
+  late final AnimationController _eventSparkleController;
   bool _showPanelPulse = false;
   bool _showArrowHint = false;
   bool _suppressNextClearHint = false;
@@ -82,6 +87,25 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     _hintOpacity = Tween<double>(begin: 0.4, end: 1.0).animate(
       CurvedAnimation(parent: _hintAnimController, curve: Curves.easeInOut),
     );
+    // Event button pulse animation
+    _eventPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _eventPulseAnimation = Tween<double>(begin: 0.95, end: 1.12).animate(
+      CurvedAnimation(parent: _eventPulseController, curve: Curves.easeInOut),
+    );
+    try {
+      _eventPulseController.repeat(reverse: true);
+    } catch (_) {}
+    // sparkles
+    _eventSparkleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    try {
+      _eventSparkleController.repeat();
+    } catch (_) {}
     // Start periodic location refresh (every 10 seconds)
     _startLocationTimer();
     // Subscribe to top-level /images and the current user's /users/{uid}/images
@@ -186,6 +210,45 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     try {
       _hintAnimController.stop();
     } catch (_) {}
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // ensure event pulse keeps running if needed when dependencies change
+    try {
+      if (!_eventPulseController.isAnimating)
+        _eventPulseController.repeat(reverse: true);
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    try {
+      _topImagesSub?.cancel();
+    } catch (_) {}
+    try {
+      _userImagesSub?.cancel();
+    } catch (_) {}
+    try {
+      _imagesPingSub?.cancel();
+    } catch (_) {}
+    try {
+      _locationTimer?.cancel();
+    } catch (_) {}
+    try {
+      _burstRefreshTimer?.cancel();
+    } catch (_) {}
+    try {
+      _hintAnimController.dispose();
+    } catch (_) {}
+    try {
+      _eventPulseController.dispose();
+    } catch (_) {}
+    try {
+      _eventSparkleController.dispose();
+    } catch (_) {}
+    super.dispose();
   }
 
   Map<String, dynamic>? _currentFilter;
@@ -563,7 +626,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   void _startLocationTimer() {
     // refresh user's position every 10 seconds while the screen is mounted
     _locationTimer?.cancel();
-    _locationTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+    _locationTimer = Timer.periodic(const Duration(seconds: 60), (timer) async {
       try {
         final pos = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.best,
@@ -997,6 +1060,28 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 subdomains: const ['a', 'b', 'c'],
                 userAgentPackageName: 'com.example.login_fish_app',
               ),
+              // User location marker (separate, not clustered) - draw first so photo markers are on top
+              if (_locationLoaded)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      width: 44,
+                      height: 44,
+                      point: _initialPosition,
+                      child: Image.asset(
+                        'assets/icon/person_icon.png',
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.contain,
+                        errorBuilder: (c, e, s) => const Icon(
+                          Icons.my_location,
+                          size: 36,
+                          color: Colors.red,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               // Cluster layer for photo markers
               MarkerClusterLayerWidget(
                 options: MarkerClusterLayerOptions(
@@ -1472,22 +1557,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   },
                 ),
               ),
-              // User location marker (separate, not clustered)
-              if (_locationLoaded)
-                MarkerLayer(
-                  markers: [
-                    Marker(
-                      width: 40,
-                      height: 40,
-                      point: _initialPosition,
-                      child: const Icon(
-                        Icons.my_location,
-                        size: 36,
-                        color: Colors.red,
-                      ),
-                    ),
-                  ],
-                ),
+              // (User marker moved earlier so photo markers render above)
             ],
           ),
           // Left-side active filters panel (under header)
@@ -1559,6 +1629,97 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               child: LinearProgressIndicator(),
             ),
           // Gallery button top-right
+          // Event button top-left (under header) - placeholder icon, behaviour to be added
+          Positioned(
+            top: 16,
+            left: 16,
+            child: SafeArea(
+              child: AnimatedBuilder(
+                animation: _eventSparkleController,
+                builder: (context, child) {
+                  final t = _eventSparkleController.value * math.pi * 2;
+                  const int count = 6;
+                  const double radius = 20.0;
+                  return SizedBox(
+                    width: 72,
+                    height: 72,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        for (int i = 0; i < count; i++)
+                          Positioned(
+                            left:
+                                36 +
+                                math.cos(t + (i / count) * math.pi * 2) *
+                                    radius -
+                                4,
+                            top:
+                                36 +
+                                math.sin(t + (i / count) * math.pi * 2) *
+                                    radius -
+                                4,
+                            child: Opacity(
+                              opacity:
+                                  0.2 + 0.8 * (0.5 + 0.5 * math.sin(t * 2 + i)),
+                              child: Transform.rotate(
+                                angle: t + i,
+                                child: Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF9A825),
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(
+                                          0xFFF9A825,
+                                        ).withOpacity(1.0),
+                                        blurRadius: 6,
+                                        spreadRadius: 1,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ScaleTransition(
+                          scale: _eventPulseAnimation,
+                          child: FloatingActionButton(
+                            heroTag: 'event_fab',
+                            mini: true,
+                            backgroundColor: const Color(0xFF8BC34A),
+                            shape: const CircleBorder(
+                              side: BorderSide(color: Colors.black, width: 2),
+                            ),
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const EventScreen(),
+                                ),
+                              );
+                            },
+                            child: Image.asset(
+                              'assets/icon/event_icon.png',
+                              width: 22,
+                              height: 22,
+                              fit: BoxFit.contain,
+                              errorBuilder: (c, e, s) => _outlinedIcon(
+                                Icons.event,
+                                size: 20,
+                                color: AppTheme.textColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+
           Positioned(
             top: 16,
             right: 16,
@@ -1730,29 +1891,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
-  }
-
-  @override
-  void dispose() {
-    try {
-      _topImagesSub?.cancel();
-    } catch (_) {}
-    try {
-      _userImagesSub?.cancel();
-    } catch (_) {}
-    try {
-      _imagesPingSub?.cancel();
-    } catch (_) {}
-    try {
-      _locationTimer?.cancel();
-    } catch (_) {}
-    try {
-      _burstRefreshTimer?.cancel();
-    } catch (_) {}
-    try {
-      _hintAnimController.dispose();
-    } catch (_) {}
-    super.dispose();
   }
 
   // Helper to draw an icon with a black outline by drawing several

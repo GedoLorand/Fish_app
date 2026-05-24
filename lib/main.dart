@@ -6,6 +6,8 @@ import 'package:login_fish_app/backend-login/wrapper.dart';
 import 'package:get/get.dart';
 import 'homepage/Initial/initialType.dart';
 import 'controllers/theme_controller.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'consent/consent_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,14 +35,40 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     // Put the theme controller into GetX
     Get.put(ThemeController());
-
     return GetMaterialApp(
       title: 'Flutter Demo',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.theme,
       themeMode: ThemeMode.dark,
-      home: Wrapper(),
+      home: FutureBuilder<bool?>(
+        future: _checkConsent(),
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          final consent = snap.data ?? null;
+          if (consent == true) {
+            return const Wrapper();
+          }
+          // show consent screen; when decision is done, push Wrapper
+          return ConsentScreen(
+            onDecision: (accepted) {
+              // After user decides, rebuild by replacing the current route with Wrapper
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(builder: (_) => const Wrapper()),
+              );
+            },
+          );
+        },
+      ),
     );
+  }
+
+  Future<bool?> _checkConsent() async {
+    final sp = await SharedPreferences.getInstance();
+    return sp.getBool('consentGiven');
   }
 }
 

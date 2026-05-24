@@ -125,7 +125,7 @@ class _SignupState extends State<Signup> {
             children: [
               Center(
                 child: Image.asset(
-                  'assets/icon/app_icon.png',
+                  'assets/icon/app_icon_uszo.png',
                   width: 100,
                   height: 100,
                 ),

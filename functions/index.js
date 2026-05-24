@@ -4,6 +4,12 @@ admin.initializeApp();
 
 const vision = require('@google-cloud/vision');
 const axios = require('axios');
+let sendgrid;
+try {
+  sendgrid = require('@sendgrid/mail');
+} catch (e) {
+  console.warn('sendgrid not installed; report email notifications will be disabled');
+}
 
 console.log('Cloud Function module loaded: analyzeImageForFish (Google Vision)');
 
@@ -130,6 +136,48 @@ try {
   sharp = require('sharp');
 } catch (e) {
   console.warn('sharp not available:', e && e.message || e);
+}
+
+// Firestore trigger: when a report is created, send an email notification to the app owner (if SendGrid is configured)
+if (functions && functions.firestore && typeof functions.firestore.document === 'function') {
+  exports.onReportCreated = functions.firestore
+    .document('reports/{reportId}')
+    .onCreate(async (snap, context) => {
+      const report = snap.data() || {};
+      const apiKey = process.env.SENDGRID_API_KEY || functions.config && functions.config().sendgrid && functions.config().sendgrid.key;
+      if (!sendgrid || !apiKey) {
+        console.log('SendGrid not configured; skipping report email for', context.params.reportId);
+        return null;
+      }
+      try {
+        sendgrid.setApiKey(apiKey);
+        const ownerEmail = 'gedolorand@gmail.com';
+        const reporter = report.reporterEmail || report.reporterName || report.reporterUid || 'ismeretlen';
+        const subject = `Jelentés érkezett: ${report.reason || 'ok'}`;
+        const bodyLines = [];
+        bodyLines.push(`Jelentő: ${reporter}`);
+        bodyLines.push(`Kép tulajdonos: ${report.imageOwnerName || report.imageOwnerUid || 'ismeretlen'}`);
+        bodyLines.push(`Kép doc/id: ${report.imageDocId || 'n/a'}`);
+        bodyLines.push(`Kép URL: ${report.imageUrl || 'n/a'}`);
+        bodyLines.push(`Ok: ${report.reason || 'n/a'}`);
+        if (report.note) bodyLines.push(`Megjegyzés: ${report.note}`);
+        bodyLines.push(`Idő: ${new Date().toISOString()}`);
+
+        const msg = {
+          to: ownerEmail,
+          from: ownerEmail,
+          subject: subject,
+          text: bodyLines.join('\n'),
+        };
+        await sendgrid.send(msg);
+        console.log('Sent report email for', context.params.reportId);
+      } catch (e) {
+        console.warn('Failed to send report email:', e && e.message || e);
+      }
+      return null;
+    });
+} else {
+  console.warn('Firestore triggers not available; skipping onReportCreated registration');
 }
 
 // Some firebase-functions versions used in analysis/deploy may not expose

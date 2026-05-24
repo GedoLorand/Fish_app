@@ -4,6 +4,8 @@ import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 
 class PhotoDetailDialog extends StatefulWidget {
@@ -102,33 +104,67 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (widget.url != null)
-                      ClipRRect(
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(8.0),
-                          topRight: Radius.circular(8.0),
-                        ),
-                        child: CachedNetworkImage(
-                          imageUrl: widget.url!,
-                          fit: BoxFit.contain,
-                          height: imageHeight,
-                          width: double.infinity,
-                          placeholder: (c, u) => Container(
-                            width: double.infinity,
-                            height: imageHeight,
-                            color: Colors.grey.shade300,
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.0,
+                      Stack(
+                        children: [
+                          ClipRRect(
+                            borderRadius: const BorderRadius.only(
+                              topLeft: Radius.circular(8.0),
+                              topRight: Radius.circular(8.0),
+                            ),
+                            child: CachedNetworkImage(
+                              imageUrl: widget.url!,
+                              fit: BoxFit.contain,
+                              height: imageHeight,
+                              width: double.infinity,
+                              placeholder: (c, u) => Container(
+                                width: double.infinity,
+                                height: imageHeight,
+                                color: Colors.grey.shade300,
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.0,
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (c, u, e) => Container(
+                                width: double.infinity,
+                                height: imageHeight,
+                                color: Colors.grey.shade300,
+                                child: const Icon(Icons.broken_image),
                               ),
                             ),
                           ),
-                          errorWidget: (c, u, e) => Container(
-                            width: double.infinity,
-                            height: imageHeight,
-                            color: Colors.grey.shade300,
-                            child: const Icon(Icons.broken_image),
+                          // report button in top-left corner
+                          Positioned(
+                            top: 8,
+                            left: 8,
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(6),
+                                onTap: () => _openReportSheet(context),
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    borderRadius: BorderRadius.circular(6),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.4),
+                                        blurRadius: 4,
+                                      )
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.report,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     Padding(
                       padding: const EdgeInsets.all(12.0),
@@ -202,6 +238,135 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
         ),
       ),
     );
+  }
+
+  void _openReportSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.surfaceColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (ctx) {
+        final reasons = [
+          'rossz képminőség',
+          'hibás kép',
+          'nem hal',
+          'hamis adat',
+          'csalás',
+          'egyéb',
+        ];
+        String? selected;
+        final TextEditingController noteCtrl = TextEditingController();
+        return StatefulBuilder(builder: (c, setState) {
+          // ensure sheet can grow above keyboard and be scrollable
+          final mq = MediaQuery.of(ctx);
+          return Padding(
+            padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+            child: SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: mq.size.height * 0.85,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Jelentés oka',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      for (final r in reasons)
+                        RadioListTile<String>(
+                          value: r,
+                          groupValue: selected,
+                          title: Text(r, style: TextStyle(color: AppTheme.textColor)),
+                          onChanged: (v) => setState(() => selected = v),
+                        ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: noteCtrl,
+                        style: TextStyle(color: AppTheme.textColor),
+                        decoration: InputDecoration(
+                          labelText: 'Megjegyzés (opcionális)',
+                          labelStyle: TextStyle(color: AppTheme.textColor.withOpacity(0.7)),
+                        ),
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: const Text('Mégse'),
+                          ),
+                          const SizedBox(width: 8),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                            onPressed: selected == null
+                                ? null
+                                : () async {
+                                    // keep sheet visible while sending to ensure UX
+                                    await _sendReport(selected!, noteCtrl.text.trim());
+                                    if (mounted) Navigator.of(ctx).pop();
+                                  },
+                            child: const Text('Hiba jelentés'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  Future<void> _sendReport(String reason, String note) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final reporterUid = user?.uid;
+      final reporterEmail = user?.email;
+      final reporterName = user?.displayName;
+
+      final imageDocId = widget.doc != null && widget.doc!['id'] != null
+          ? widget.doc!['id']
+          : (widget.doc != null && widget.doc!['fileName'] != null ? widget.doc!['fileName'] : null);
+
+      final data = {
+        'reporterUid': reporterUid,
+        'reporterEmail': reporterEmail,
+        'reporterName': reporterName,
+        'imageDocId': imageDocId,
+        'imageUrl': widget.url,
+        'imageOwnerUid': widget.doc != null ? (widget.doc!['uid'] ?? widget.doc!['ownerId']) : null,
+        'imageOwnerName': widget.doc != null ? widget.doc!['uploaderName'] : null,
+        'reason': reason,
+        'note': note.isEmpty ? null : note,
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      await FirebaseFirestore.instance.collection('reports').add(data);
+
+      // Optionally: trigger a mailto fallback for immediate manual email by user
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Köszönjük, a jelentést elküldtük.'),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Hiba történt: ${e.toString()}'),
+      ));
+    }
   }
 
   String _labelForKey(String key) {

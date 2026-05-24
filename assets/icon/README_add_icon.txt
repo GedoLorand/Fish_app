@@ -1,6 +1,6 @@
 Kérlek másold ide a ikonképet a következő névvel:
 
-app_icon.png
+app_icon_uszo.png
 
 Ajánlott méret: 1024x1024 px (PNG). Átlátszó háttér megengedett.
 

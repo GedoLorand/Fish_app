@@ -35,10 +35,20 @@ class CustomDrawer extends StatelessWidget {
                   icon: Icons.photo_library,
                   text: 'Gallery',
                   onTap: () {
+                    // Close drawer first so navigation happens from the underlying
+                    // screen (usually MapScreen). Then await result from Gallery
+                    // and publish an owner-only filter so MapScreen can react.
+                    Navigator.pop(context);
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => Gallery()),
-                    );
+                    ).then((res) {
+                      try {
+                        if (res is Map && res['showOnlyMine'] == true) {
+                          FilterBus.instance.publish({'ownerOnly': true});
+                        }
+                      } catch (_) {}
+                    });
                   },
                 ),
                 Divider(color: AppTheme.textColor.withOpacity(0.3)),
