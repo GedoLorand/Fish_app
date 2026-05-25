@@ -951,7 +951,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         await FirebaseFirestore.instance
             .collection('images')
             .doc(docRef.id)
-            .set({...docData, 'userDocPath': '/users/$uid', 'docId': docRef.id});
+            .set({
+              ...docData,
+              'userDocPath': '/users/$uid',
+              'docId': docRef.id,
+            });
         // Also update a lightweight meta "ping" document so other clients
         // that may not immediately receive collectionGroup updates will
         // trigger a server refresh via the ping listener added in initState.

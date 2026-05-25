@@ -63,17 +63,17 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
       doc.forEach((k, v) {
         // exclude fields that should not be shown in the dynamic details list
         if (k == 'url' ||
-          k == 'createdAt' ||
-          k == 'point' ||
-          k == 'fileName' ||
-          k == 'storagePath' ||
-          k == 'docId' ||
-          k == 'uid' ||
-          k == 'location' ||
-          k == 'ownerId' ||
-          k == 'public' ||
-          k == 'uploaderName' ||
-          k == 'userDocPath')
+            k == 'createdAt' ||
+            k == 'point' ||
+            k == 'fileName' ||
+            k == 'storagePath' ||
+            k == 'docId' ||
+            k == 'uid' ||
+            k == 'location' ||
+            k == 'ownerId' ||
+            k == 'public' ||
+            k == 'uploaderName' ||
+            k == 'userDocPath')
           return;
         if (order.contains(k)) return;
         if (v == null) return;
@@ -355,8 +355,8 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
       final imageDocId = widget.doc != null && widget.doc!['docId'] != null
           ? widget.doc!['docId']
           : (widget.doc != null && widget.doc!['fileName'] != null
-            ? widget.doc!['fileName']
-            : null);
+                ? widget.doc!['fileName']
+                : null);
 
       final data = {
         'reporterUid': reporterUid,

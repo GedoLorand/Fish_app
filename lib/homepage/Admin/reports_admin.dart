@@ -36,7 +36,9 @@ class _ReportsAdminScreenState extends State<ReportsAdminScreen> {
     // Create the stream after token refresh so server permissions evaluate correctly
     try {
       setState(() {
-        _reportsStream = _reportsRef.orderBy('createdAt', descending: true).snapshots();
+        _reportsStream = _reportsRef
+            .orderBy('createdAt', descending: true)
+            .snapshots();
       });
     } catch (_) {
       setState(() {
@@ -253,7 +255,8 @@ class _ReportsAdminScreenState extends State<ReportsAdminScreen> {
                 if (snap.hasError) {
                   // If permission denied, attempt one token refresh and recreate stream
                   final err = snap.error?.toString() ?? '';
-                  if (!_attemptedTokenRefresh && err.contains('permission-denied')) {
+                  if (!_attemptedTokenRefresh &&
+                      err.contains('permission-denied')) {
                     _attemptedTokenRefresh = true;
                     try {
                       final user = FirebaseAuth.instance.currentUser;
@@ -261,19 +264,25 @@ class _ReportsAdminScreenState extends State<ReportsAdminScreen> {
                         user.getIdTokenResult(true).whenComplete(() {
                           try {
                             setState(() {
-                              _reportsStream = _reportsRef.orderBy('createdAt', descending: true).snapshots();
+                              _reportsStream = _reportsRef
+                                  .orderBy('createdAt', descending: true)
+                                  .snapshots();
                             });
                           } catch (_) {}
                         });
                       } else {
                         try {
                           setState(() {
-                            _reportsStream = _reportsRef.orderBy('createdAt', descending: true).snapshots();
+                            _reportsStream = _reportsRef
+                                .orderBy('createdAt', descending: true)
+                                .snapshots();
                           });
                         } catch (_) {}
                       }
                     } catch (_) {}
-                    return const Center(child: Text('Jogosultság frissítése, újrapróbálkozás...'));
+                    return const Center(
+                      child: Text('Jogosultság frissítése, újrapróbálkozás...'),
+                    );
                   }
                   return Center(
                     child: Padding(
@@ -295,61 +304,61 @@ class _ReportsAdminScreenState extends State<ReportsAdminScreen> {
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, idx) {
                     final doc = snap.data!.docs[idx];
-              final data = doc.data() as Map<String, dynamic>;
-              final reason = data['reason'] ?? '-';
-              final note = data['note'] ?? '';
-              final reporter =
-                  data['reporterName'] ?? data['reporterEmail'] ?? 'Anon';
-              final imageUrl = data['imageUrl'] as String?;
+                    final data = doc.data() as Map<String, dynamic>;
+                    final reason = data['reason'] ?? '-';
+                    final note = data['note'] ?? '';
+                    final reporter =
+                        data['reporterName'] ?? data['reporterEmail'] ?? 'Anon';
+                    final imageUrl = data['imageUrl'] as String?;
 
-              return ListTile(
-                leading: imageUrl != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: CachedNetworkImage(
-                          imageUrl: imageUrl,
-                          width: 60,
-                          height: 60,
-                          fit: BoxFit.cover,
-                          placeholder: (c, u) =>
-                              Container(color: Colors.grey.shade300),
-                        ),
-                      )
-                    : const SizedBox(width: 60, height: 60),
-                title: Text('$reason — $reporter'),
-                subtitle: Text(note.toString()),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (v) async {
-                    if (v == 'delete_report') {
-                      await _deleteReport(doc.id);
-                      try {
-                        await FirebaseFirestore.instance
-                            .collection('meta')
-                            .doc('images_last_update')
-                            .set({'ts': FieldValue.serverTimestamp()});
-                      } catch (_) {}
-                    } else if (v == 'delete_image') {
-                      await _deleteImageFromFirestoreAndStorage(data);
-                      // also remove the report after image deletion
-                      await _deleteReport(doc.id);
-                    }
+                    return ListTile(
+                      leading: imageUrl != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: CachedNetworkImage(
+                                imageUrl: imageUrl,
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.cover,
+                                placeholder: (c, u) =>
+                                    Container(color: Colors.grey.shade300),
+                              ),
+                            )
+                          : const SizedBox(width: 60, height: 60),
+                      title: Text('$reason — $reporter'),
+                      subtitle: Text(note.toString()),
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (v) async {
+                          if (v == 'delete_report') {
+                            await _deleteReport(doc.id);
+                            try {
+                              await FirebaseFirestore.instance
+                                  .collection('meta')
+                                  .doc('images_last_update')
+                                  .set({'ts': FieldValue.serverTimestamp()});
+                            } catch (_) {}
+                          } else if (v == 'delete_image') {
+                            await _deleteImageFromFirestoreAndStorage(data);
+                            // also remove the report after image deletion
+                            await _deleteReport(doc.id);
+                          }
+                        },
+                        itemBuilder: (ctx) => [
+                          const PopupMenuItem(
+                            value: 'delete_report',
+                            child: Text('Töröld a jelentést'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete_image',
+                            child: Text('Töröld a képet (Firestore+Storage)'),
+                          ),
+                        ],
+                      ),
+                    );
                   },
-                  itemBuilder: (ctx) => [
-                    const PopupMenuItem(
-                      value: 'delete_report',
-                      child: Text('Töröld a jelentést'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete_image',
-                      child: Text('Töröld a képet (Firestore+Storage)'),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      ),
+                );
+              },
+            ),
     );
   }
 }
