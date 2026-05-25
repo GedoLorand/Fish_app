@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Reports collection: anyone authenticated can create; only admin can read/delete
+    match /reports/{reportId} {
+      allow create: if request.auth != null
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() <= 200;
+
+      // Admin check by custom claim or by email
+      allow read, delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.token.email == "gedolorand@gmail.com"
+      );
+    }
+
+    // Top-level images collection: only admins can delete documents
+    match /images/{imageDoc} {
+      allow read: if request.auth != null && request.auth.uid != null; // basic read for authenticated users
+      allow create: if request.auth != null; // app may write images
+      allow delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.token.email == "gedolorand@gmail.com"
+      );
+    }
+
+    // Per-user images under users/{uid}/images/{imageId}
+    match /users/{userId}/images/{imageId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || request.auth.token.admin == true || request.auth.token.email == "gedolorand@gmail.com");
+      allow create: if request.auth != null && request.auth.uid == userId; // users can create their own image docs
+      allow delete: if request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.token.email == "gedolorand@gmail.com" ||
+        request.auth.uid == userId
+      );
+    }
+
+    // Fallback: other collections keep default deny (or add project-specific rules)
+  }
+}

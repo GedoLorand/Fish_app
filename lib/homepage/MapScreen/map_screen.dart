@@ -853,6 +853,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         'url': url,
         'createdAt': FieldValue.serverTimestamp(),
       };
+      // Save storage path and original file name to help reliable deletions
+      docData['storagePath'] = 'user_images/$uid/$filename';
+      docData['fileName'] = filename;
       // Try to include uploader name and owner id for other users to see
       String uploaderName = user.displayName ?? '';
       try {
@@ -911,6 +914,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           .collection('images')
           .add(docData);
 
+      // Store the generated doc id inside the document for reliable later reference
+      try {
+        await docRef.update({'docId': docRef.id});
+      } catch (_) {}
+
       // (No automatic suggestion collection — user-entered species is authoritative)
 
       // Immediately append the new entry locally so the map updates without re-opening
@@ -943,7 +951,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         await FirebaseFirestore.instance
             .collection('images')
             .doc(docRef.id)
-            .set({...docData, 'userDocPath': '/users/$uid'});
+            .set({...docData, 'userDocPath': '/users/$uid', 'docId': docRef.id});
         // Also update a lightweight meta "ping" document so other clients
         // that may not immediately receive collectionGroup updates will
         // trigger a server refresh via the ping listener added in initState.

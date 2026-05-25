@@ -7,9 +7,27 @@ import 'package:login_fish_app/homepage/AIScreen/ai_assistant.dart';
 import 'package:login_fish_app/services/filter_bus.dart';
 //import 'package:flutterfishapp/UserScreen/user.dart';
 import 'package:login_fish_app/homepage/SettingsScreen/settings.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:login_fish_app/homepage/Admin/reports_admin.dart';
 
-class CustomDrawer extends StatelessWidget {
+class CustomDrawer extends StatefulWidget {
   const CustomDrawer({super.key});
+
+  @override
+  State<CustomDrawer> createState() => _CustomDrawerState();
+}
+
+class _CustomDrawerState extends State<CustomDrawer> {
+  User? _user;
+
+  @override
+  void initState() {
+    super.initState();
+    _user = FirebaseAuth.instance.currentUser;
+    FirebaseAuth.instance.authStateChanges().listen(
+      (u) => setState(() => _user = u),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -94,6 +112,24 @@ class CustomDrawer extends StatelessWidget {
                     );
                   },
                 ),
+                Divider(color: AppTheme.textColor.withOpacity(0.3)),
+                // Admin-only reports screen
+                if (_user != null &&
+                    (_user!.email == 'gedolorand@gmail.com' ||
+                        _user!.isAnonymous == false && false))
+                  _buildListTile(
+                    icon: Icons.report,
+                    text: 'Reports',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ReportsAdminScreen(),
+                        ),
+                      );
+                    },
+                  ),
                 Divider(color: AppTheme.textColor.withOpacity(0.3)),
                 _buildListTile(
                   icon: Icons.logout,
