@@ -1066,7 +1066,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                 urlTemplate:
                     'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                 subdomains: const ['a', 'b', 'c'],
-                userAgentPackageName: 'com.example.login_fish_app',
+                userAgentPackageName: 'ro.catchpoint',
               ),
               // User location marker (separate, not clustered) - draw first so photo markers are on top
               if (_locationLoaded)

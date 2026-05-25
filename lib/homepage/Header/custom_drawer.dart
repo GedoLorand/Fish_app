@@ -9,6 +9,8 @@ import 'package:login_fish_app/services/filter_bus.dart';
 import 'package:login_fish_app/homepage/SettingsScreen/settings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:login_fish_app/homepage/Admin/reports_admin.dart';
+import 'package:login_fish_app/homepage/LegalScreen/legal_links.dart';
+import 'package:login_fish_app/homepage/LegalScreen/legal_webview.dart';
 
 class CustomDrawer extends StatefulWidget {
   const CustomDrawer({super.key});
@@ -33,7 +35,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
   Widget build(BuildContext context) {
     return Drawer(
       width: MediaQuery.of(context).size.width * 0.65,
-      backgroundColor: AppTheme.surfaceColor.withOpacity(0.98),
+      backgroundColor: AppTheme.surfaceColor.withValues(alpha: 0.98),
       elevation: 8,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
@@ -69,7 +71,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     });
                   },
                 ),
-                Divider(color: AppTheme.textColor.withOpacity(0.3)),
+                Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
                 _buildListTile(
                   icon: Icons.filter_alt,
                   text: 'Filters',
@@ -87,7 +89,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     } catch (_) {}
                   },
                 ),
-                Divider(color: AppTheme.textColor.withOpacity(0.3)),
+                Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
                 _buildListTile(
                   icon: Icons.smart_toy,
                   text: 'AI Asszisztens',
@@ -101,18 +103,53 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     );
                   },
                 ),
-                Divider(color: AppTheme.textColor.withOpacity(0.3)),
+                Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
                 _buildListTile(
                   icon: Icons.settings,
                   text: 'Settings',
                   onTap: () {
+                    Navigator.pop(context);
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => Settings()),
                     );
                   },
                 ),
-                Divider(color: AppTheme.textColor.withOpacity(0.3)),
+                Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
+                _buildListTile(
+                  icon: Icons.privacy_tip,
+                  text: 'Privacy Policy',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LegalWebViewScreen(
+                          title: 'Privacy Policy',
+                          url: LegalLinks.privacyPolicyUrl,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
+                _buildListTile(
+                  icon: Icons.description,
+                  text: 'Terms and Conditions',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const LegalWebViewScreen(
+                          title: 'Terms and Conditions',
+                          url: LegalLinks.termsAndConditionsUrl,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
                 // Admin-only reports screen
                 if (_user != null &&
                     (_user!.email == 'gedolorand@gmail.com' ||
@@ -130,7 +167,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       );
                     },
                   ),
-                Divider(color: AppTheme.textColor.withOpacity(0.3)),
+                Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
                 _buildListTile(
                   icon: Icons.logout,
                   text: 'Logout',

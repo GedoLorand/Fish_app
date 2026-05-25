@@ -1,4 +1,4 @@
-package com.example.login_fish_app
+package ro.catchpoint
 
 import io.flutter.embedding.android.FlutterActivity
 

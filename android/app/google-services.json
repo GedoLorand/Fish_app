@@ -7,12 +7,17 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:233643539373:android:a1b682e4a249927df93f24",
+        "mobilesdk_app_id": "1:233643539373:android:3b3db127188d34a5f93f24",
         "android_client_info": {
-          "package_name": "com.example.login_fish_app"
+          "package_name": "ro.catchpoint"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "233643539373-471ts4se6dpkou4c8abgcuvijh7pb9re.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBgRwhz6Q3BFBAqZ84Zp5Tlk8aUWnHKN50"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "233643539373-471ts4se6dpkou4c8abgcuvijh7pb9re.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
