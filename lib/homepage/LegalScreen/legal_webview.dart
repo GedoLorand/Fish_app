@@ -149,9 +149,7 @@ class _LegalMessage extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppTheme.textColor.withValues(alpha: 0.75),
-              ),
+              style: TextStyle(color: AppTheme.textColor.withOpacity(0.75)),
             ),
             if (action != null) ...[const SizedBox(height: 18), action!],
           ],

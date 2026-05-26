@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="hu">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CatchPoint felhasználási feltételek</title>
+    <meta
+      name="description"
+      content="A CatchPoint mobilalkalmazás felhasználási feltételei."
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f8f6;
+        --surface: #ffffff;
+        --ink: #14231d;
+        --muted: #53625c;
+        --primary: #176b4a;
+        --primary-strong: #0f4d36;
+        --accent: #e8a12f;
+        --border: #dce6e1;
+        --shadow: 0 18px 48px rgba(16, 55, 39, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at 12% 8%, rgba(232, 161, 47, 0.16), transparent 28rem),
+          linear-gradient(180deg, #eef7f2 0%, var(--bg) 34%, #ffffff 100%);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        line-height: 1.65;
+      }
+
+      a {
+        color: var(--primary-strong);
+        font-weight: 700;
+      }
+
+      .page {
+        width: min(1120px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 40px 0 56px;
+      }
+
+      header {
+        padding: 44px clamp(20px, 5vw, 56px);
+        background: linear-gradient(135deg, #0f4d36 0%, #187151 68%, #239668 100%);
+        border-radius: 22px;
+        color: #ffffff;
+        box-shadow: var(--shadow);
+      }
+
+      .eyebrow {
+        margin: 0 0 12px;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 0.9rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 780px;
+        margin: 0;
+        font-size: clamp(2rem, 5vw, 4.2rem);
+        line-height: 1.06;
+        letter-spacing: 0;
+      }
+
+      .intro {
+        max-width: 780px;
+        margin: 22px 0 0;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: clamp(1rem, 2.2vw, 1.18rem);
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 28px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 36px;
+        padding: 7px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        color: #ffffff;
+        font-size: 0.92rem;
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+        gap: 24px;
+        margin-top: 24px;
+        align-items: start;
+      }
+
+      nav,
+      section {
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: 0 12px 32px rgba(20, 35, 29, 0.06);
+      }
+
+      nav {
+        position: sticky;
+        top: 20px;
+        padding: 18px;
+      }
+
+      nav h2 {
+        margin: 0 0 12px;
+        font-size: 0.86rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      nav a {
+        display: block;
+        padding: 9px 10px;
+        border-radius: 10px;
+        color: var(--ink);
+        font-size: 0.95rem;
+        font-weight: 650;
+        text-decoration: none;
+      }
+
+      nav a:hover,
+      nav a:focus {
+        background: #ecf5f0;
+        outline: none;
+      }
+
+      .content {
+        display: grid;
+        gap: 18px;
+      }
+
+      section {
+        padding: clamp(22px, 4vw, 34px);
+      }
+
+      h2 {
+        margin: 0 0 14px;
+        color: var(--primary-strong);
+        font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+        line-height: 1.2;
+      }
+
+      h3 {
+        margin: 22px 0 8px;
+        color: var(--ink);
+        font-size: 1.08rem;
+      }
+
+      p {
+        margin: 0 0 14px;
+      }
+
+      ul {
+        margin: 0;
+        padding-left: 1.2rem;
+      }
+
+      li {
+        margin: 8px 0;
+      }
+
+      .notice {
+        border-left: 4px solid var(--accent);
+        padding: 14px 16px;
+        background: #fff8eb;
+        border-radius: 12px;
+        color: #3d3220;
+      }
+
+      footer {
+        margin-top: 24px;
+        padding: 22px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      @media (max-width: 860px) {
+        .page {
+          width: min(100% - 24px, 720px);
+          padding-top: 20px;
+        }
+
+        header {
+          border-radius: 18px;
+        }
+
+        main {
+          grid-template-columns: 1fr;
+        }
+
+        nav {
+          position: static;
+        }
+      }
+
+      @media print {
+        body {
+          background: #ffffff;
+        }
+
+        .page {
+          width: 100%;
+          padding: 0;
+        }
+
+        header,
+        nav,
+        section {
+          box-shadow: none;
+        }
+
+        nav {
+          display: none;
+        }
+
+        main {
+          display: block;
+        }
+
+        section {
+          page-break-inside: avoid;
+          margin: 0 0 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <p class="eyebrow">Felhasználási feltételek</p>
+        <h1>CatchPoint terms and conditions</h1>
+        <p class="intro">
+          Ezek a feltételek határozzák meg a CatchPoint mobilalkalmazás használatának
+          alapvető szabályait. Az alkalmazás használatával a felhasználó elfogadja
+          az itt leírt feltételeket.
+        </p>
+        <div class="meta" aria-label="Alapadatok">
+          <span class="pill">Alkalmazás: CatchPoint</span>
+          <span class="pill">Utolsó frissítés: 2026. május 25.</span>
+          <span class="pill">Kapcsolat: gedolorand@gmail.com</span>
+        </div>
+      </header>
+
+      <main>
+        <nav aria-label="Tartalomjegyzék">
+          <h2>Tartalom</h2>
+          <a href="#acceptance">Elfogadás</a>
+          <a href="#service">Szolgáltatás</a>
+          <a href="#account">Fiók</a>
+          <a href="#content">Felhasználói tartalom</a>
+          <a href="#rules">Tiltott használat</a>
+          <a href="#moderation">Moderáció</a>
+          <a href="#location">Fotó és helyadat</a>
+          <a href="#third-parties">Harmadik felek</a>
+          <a href="#availability">Elérhetőség</a>
+          <a href="#liability">Felelősség</a>
+          <a href="#termination">Megszüntetés</a>
+          <a href="#privacy">Adatvédelem</a>
+          <a href="#changes">Módosítások</a>
+          <a href="#contact">Kapcsolat</a>
+        </nav>
+
+        <div class="content">
+          <section id="acceptance">
+            <h2>1. A feltételek elfogadása</h2>
+            <p>
+              A CatchPoint alkalmazás letöltésével, megnyitásával, regisztrációval
+              vagy használatával a felhasználó elfogadja ezeket a felhasználási
+              feltételeket. Ha a felhasználó nem ért egyet a feltételekkel, nem
+              használhatja az alkalmazást.
+            </p>
+          </section>
+
+          <section id="service">
+            <h2>2. A szolgáltatás leírása</h2>
+            <p>
+              A CatchPoint egy horgászathoz kapcsolódó mobilalkalmazás, amely lehetővé
+              teszi felhasználói fiók létrehozását, halas fotók feltöltését, fogási
+              adatok megadását, térképes megjelenítést, közösségi böngészést és
+              tartalombejelentést.
+            </p>
+            <p>
+              Az alkalmazás bizonyos funkciói internetkapcsolatot, Firebase
+              bejelentkezést, kameraengedélyt vagy helyhozzáférést igényelhetnek.
+            </p>
+          </section>
+
+          <section id="account">
+            <h2>3. Felhasználói fiók</h2>
+            <p>
+              Az alkalmazás egyes funkcióihoz regisztráció vagy Google-fiókkal történő
+              bejelentkezés szükséges. A felhasználó felelős azért, hogy a megadott
+              adatai pontosak legyenek, és hogy a fiókját biztonságban tartsa.
+            </p>
+            <ul>
+              <li>A felhasználó nem adhat meg más személy nevében hamis vagy megtévesztő adatokat.</li>
+              <li>A belépési adatok és a fiók használatáért a felhasználó felel.</li>
+              <li>Jogosulatlan fiókhasználat gyanúja esetén kérjük, vegye fel velünk a kapcsolatot.</li>
+            </ul>
+          </section>
+
+          <section id="content">
+            <h2>4. Felhasználói tartalom</h2>
+            <p>
+              A felhasználó által feltöltött fotók, fogási adatok, halfaj, tömeg,
+              csali, etető, vízhőmérséklet, oxigéntartalom, leírás és egyéb megadott
+              adatok felhasználói tartalomnak minősülnek.
+            </p>
+            <p>
+              A felhasználó kijelenti, hogy jogosult az általa feltöltött tartalom
+              használatára és megosztására, továbbá a tartalom nem sérti más személy
+              jogait, jó hírnevét, magánéletét vagy szellemi tulajdonát.
+            </p>
+            <p>
+              A feltöltött, nyilvánosként kezelt fogási adatok és fotók az alkalmazás
+              más bejelentkezett felhasználói számára is láthatók lehetnek.
+            </p>
+          </section>
+
+          <section id="rules">
+            <h2>5. Tiltott használat</h2>
+            <p>Az alkalmazás használata során tilos:</p>
+            <ul>
+              <li>nem horgászathoz vagy nem halhoz kapcsolódó, félrevezető tartalmat feltölteni;</li>
+              <li>hamis fogási adatot, megtévesztő helyadatot vagy csalásra utaló tartalmat közzétenni;</li>
+              <li>jogellenes, sértő, zaklató, gyűlöletkeltő, pornográf vagy erőszakos tartalmat feltölteni;</li>
+              <li>más személy személyes adatait, képmását vagy tartalmát engedély nélkül megosztani;</li>
+              <li>az alkalmazás működését, biztonságát vagy más felhasználók hozzáférését zavarni;</li>
+              <li>automatizált vagy visszaélésszerű módon adatokat gyűjteni, fiókokat létrehozni vagy tartalmat feltölteni.</li>
+            </ul>
+          </section>
+
+          <section id="moderation">
+            <h2>6. Bejelentések és moderáció</h2>
+            <p>
+              Az alkalmazás lehetőséget ad képek és tartalmak bejelentésére például
+              rossz képminőség, hibás kép, nem halat ábrázoló tartalom, hamis adat,
+              csalás vagy egyéb ok miatt.
+            </p>
+            <p>
+              Fenntartjuk a jogot, hogy a szabályokat sértő, bejelentett vagy
+              problémás tartalmakat eltávolítsuk, korlátozzuk, illetve szükség esetén
+              a kapcsolódó fiók hozzáférését korlátozzuk vagy megszüntessük.
+            </p>
+          </section>
+
+          <section id="location">
+            <h2>7. Fotók, képelemzés és helyadatok</h2>
+            <p>
+              A felhasználó kamera segítségével készíthet halas fotót. A feltöltött
+              kép automatikus ellenőrzésen eshet át annak megállapítására, hogy a
+              tartalom kapcsolódik-e halhoz vagy horgászathoz.
+            </p>
+            <p>
+              A helyadatok a fogások térképes megjelenítéséhez használhatók. A
+              felhasználó felelőssége, hogy ne osszon meg olyan helyadatot vagy
+              tartalmat, amely saját vagy más személy biztonságát, magánéletét vagy
+              jogait sértheti.
+            </p>
+            <p class="notice">
+              A térképes és fogási adatok tájékoztató jellegűek. A felhasználó felel
+              azért, hogy a horgászatra vonatkozó helyi szabályokat, engedélyeket,
+              tilalmakat és jogszabályokat betartsa.
+            </p>
+          </section>
+
+          <section id="third-parties">
+            <h2>8. Harmadik fél szolgáltatások</h2>
+            <p>
+              Az alkalmazás működéséhez külső szolgáltatókat használhatunk, például
+              Google Firebase, Google Sign-In, Google Cloud Vision, térképszolgáltatások
+              és SendGrid. Ezekre a szolgáltatásokra saját feltételeik és adatvédelmi
+              tájékoztatóik is vonatkozhatnak.
+            </p>
+          </section>
+
+          <section id="availability">
+            <h2>9. Elérhetőség és változások</h2>
+            <p>
+              Törekszünk arra, hogy az alkalmazás megbízhatóan működjön, de nem
+              garantáljuk, hogy minden funkció megszakítás nélkül, hibamentesen vagy
+              minden eszközön elérhető lesz. Az alkalmazást bármikor fejleszthetjük,
+              módosíthatjuk, korlátozhatjuk vagy megszüntethetjük.
+            </p>
+          </section>
+
+          <section id="liability">
+            <h2>10. Felelősség korlátozása</h2>
+            <p>
+              Az alkalmazás információi, térképes jelölései, közösségi tartalmai és
+              automatikus képelemzési eredményei tájékoztató jellegűek. Nem vállalunk
+              felelősséget a felhasználók által feltöltött tartalmak pontosságáért,
+              jogszerűségéért vagy teljességéért.
+            </p>
+            <p>
+              A felhasználó saját felelősségére használja az alkalmazást, és köteles
+              betartani a vonatkozó horgászati, természetvédelmi, adatvédelmi és egyéb
+              jogszabályokat.
+            </p>
+          </section>
+
+          <section id="termination">
+            <h2>11. Hozzáférés korlátozása vagy megszüntetése</h2>
+            <p>
+              Ha a felhasználó megsérti ezeket a feltételeket, visszaél az alkalmazással,
+              jogsértő tartalmat tölt fel vagy más felhasználók jogait sérti, jogosultak
+              vagyunk a tartalom eltávolítására, a hozzáférés korlátozására vagy a fiók
+              megszüntetésére.
+            </p>
+          </section>
+
+          <section id="privacy">
+            <h2>12. Adatvédelem</h2>
+            <p>
+              A személyes adatok kezeléséről külön adatvédelmi tájékoztató rendelkezik:
+              <a href="privacy-policy.html">CatchPoint adatvédelmi irányelvek</a>.
+              Az alkalmazás használatával a felhasználó tudomásul veszi, hogy bizonyos
+              adatok kezelése szükséges az alkalmazás működéséhez.
+            </p>
+          </section>
+
+          <section id="changes">
+            <h2>13. A feltételek módosítása</h2>
+            <p>
+              Ezeket a feltételeket időről időre frissíthetjük. A módosított változat
+              ezen az oldalon lesz elérhető. Az alkalmazás további használata a
+              frissített feltételek elfogadását jelenti.
+            </p>
+          </section>
+
+          <section id="contact">
+            <h2>14. Kapcsolat</h2>
+            <p>
+              Kérdés, panasz, fiókkal kapcsolatos kérés vagy jogsértő tartalom
+              bejelentése esetén:
+              <a href="mailto:gedolorand@gmail.com">gedolorand@gmail.com</a>.
+            </p>
+          </section>
+        </div>
+      </main>
+
+      <footer>
+        <p>CatchPoint felhasználási feltételek - 2026. május 25.</p>
+      </footer>
+    </div>
+  </body>
+</html>

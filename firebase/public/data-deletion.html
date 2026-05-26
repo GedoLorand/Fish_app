@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="hu">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CatchPoint adattörlési kérelem</title>
+    <meta
+      name="description"
+      content="Tájékoztató arról, hogyan kérheti a felhasználó a CatchPoint alkalmazásban kezelt személyes adatainak törlését."
+    />
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f8f6;
+        --surface: #ffffff;
+        --ink: #14231d;
+        --muted: #53625c;
+        --primary: #176b4a;
+        --primary-strong: #0f4d36;
+        --accent: #e8a12f;
+        --border: #dce6e1;
+        --shadow: 0 18px 48px rgba(16, 55, 39, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at 12% 8%, rgba(232, 161, 47, 0.16), transparent 28rem),
+          linear-gradient(180deg, #eef7f2 0%, var(--bg) 34%, #ffffff 100%);
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        line-height: 1.65;
+      }
+
+      a {
+        color: var(--primary-strong);
+        font-weight: 700;
+      }
+
+      .page {
+        width: min(960px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 40px 0 56px;
+      }
+
+      header {
+        padding: 44px clamp(20px, 5vw, 56px);
+        background: linear-gradient(135deg, #0f4d36 0%, #187151 68%, #239668 100%);
+        border-radius: 22px;
+        color: #ffffff;
+        box-shadow: var(--shadow);
+      }
+
+      .eyebrow {
+        margin: 0 0 12px;
+        color: rgba(255, 255, 255, 0.78);
+        font-size: 0.9rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        max-width: 760px;
+        margin: 0;
+        font-size: clamp(2rem, 5vw, 4.2rem);
+        line-height: 1.06;
+        letter-spacing: 0;
+      }
+
+      .intro {
+        max-width: 760px;
+        margin: 22px 0 0;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: clamp(1rem, 2.2vw, 1.18rem);
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 28px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 36px;
+        padding: 7px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        color: #ffffff;
+        font-size: 0.92rem;
+      }
+
+      main {
+        display: grid;
+        gap: 18px;
+        margin-top: 24px;
+      }
+
+      section {
+        padding: clamp(22px, 4vw, 34px);
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        box-shadow: 0 12px 32px rgba(20, 35, 29, 0.06);
+      }
+
+      h2 {
+        margin: 0 0 14px;
+        color: var(--primary-strong);
+        font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+        line-height: 1.2;
+      }
+
+      p {
+        margin: 0 0 14px;
+      }
+
+      ul {
+        margin: 0;
+        padding-left: 1.2rem;
+      }
+
+      li {
+        margin: 8px 0;
+      }
+
+      .request-box {
+        display: grid;
+        gap: 12px;
+        margin: 18px 0;
+        padding: 20px;
+        border: 1px solid #f0d28d;
+        border-radius: 16px;
+        background: #fff8eb;
+      }
+
+      .email-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: fit-content;
+        min-height: 44px;
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: var(--primary-strong);
+        color: #ffffff;
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      .email-link:hover,
+      .email-link:focus {
+        background: var(--primary);
+        outline: none;
+      }
+
+      .notice {
+        border-left: 4px solid var(--accent);
+        padding: 14px 16px;
+        background: #fff8eb;
+        border-radius: 12px;
+        color: #3d3220;
+      }
+
+      .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 8px;
+      }
+
+      .secondary-link {
+        display: inline-flex;
+        align-items: center;
+        min-height: 38px;
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: #fbfdfc;
+        color: var(--primary-strong);
+        text-decoration: none;
+      }
+
+      footer {
+        margin-top: 24px;
+        padding: 22px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      @media (max-width: 720px) {
+        .page {
+          width: min(100% - 24px, 720px);
+          padding-top: 20px;
+        }
+
+        header {
+          border-radius: 18px;
+        }
+
+        .email-link {
+          width: 100%;
+        }
+      }
+
+      @media print {
+        body {
+          background: #ffffff;
+        }
+
+        .page {
+          width: 100%;
+          padding: 0;
+        }
+
+        header,
+        section {
+          box-shadow: none;
+        }
+
+        section {
+          page-break-inside: avoid;
+          margin: 0 0 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <p class="eyebrow">Adattörlési kérelem</p>
+        <h1>Felhasználói adatok törlésének kérése</h1>
+        <p class="intro">
+          A CatchPoint tiszteletben tartja a felhasználók adatvédelmi jogait.
+          Ha szeretné kérni a fiókjához kapcsolódó személyes adatok törlését,
+          egyszerűen vegye fel velünk a kapcsolatot az alábbi e-mail címen.
+        </p>
+        <div class="meta" aria-label="Alapadatok">
+          <span class="pill">Alkalmazás: CatchPoint</span>
+          <span class="pill">Utolsó frissítés: 2026. május 25.</span>
+          <span class="pill">Kapcsolat: gedolorand@gmail.com</span>
+        </div>
+      </header>
+
+      <main>
+        <section>
+          <h2>Hogyan kérhető az adatok törlése?</h2>
+          <p>
+            A felhasználó bármikor kérheti a CatchPoint alkalmazásban kezelt,
+            fiókjához kapcsolódó személyes adatainak törlését. A kérelemhez kérjük,
+            küldjön e-mailt arról az e-mail címről, amellyel a CatchPoint fiókot
+            létrehozta vagy amellyel be szokott jelentkezni.
+          </p>
+
+          <div class="request-box">
+            <strong>Kérelem küldése erre az e-mail címre:</strong>
+            <a class="email-link" href="mailto:gedolorand@gmail.com">
+              gedolorand@gmail.com
+            </a>
+            <p>
+              Az üzenet tárgyába érdemes ezt írni: <strong>Adattörlési kérelem - CatchPoint</strong>.
+            </p>
+          </div>
+
+          <p>
+            A kérelem feldolgozásához szükség lehet arra, hogy azonosítsuk a fiókot,
+            és megbizonyosodjunk arról, hogy a törlést valóban az érintett felhasználó
+            kéri. Ez az Ön adatainak védelmét szolgálja.
+          </p>
+        </section>
+
+        <section>
+          <h2>Milyen adatok törlését lehet kérni?</h2>
+          <p>A törlési kérelem a fiókhoz kapcsolódó adatokra vonatkozhat, például:</p>
+          <ul>
+            <li>fiókadatok, például név és e-mail cím;</li>
+            <li>profiladatok, például nem, születési dátum vagy életkor;</li>
+            <li>feltöltött fotók és azokhoz kapcsolódó fogási adatok;</li>
+            <li>helyadatok, ha azok feltöltött fogáshoz kapcsolódnak;</li>
+            <li>bejelentésekhez vagy moderációhoz kapcsolódó, azonosítható felhasználói adatok.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Feldolgozási idő és fontos tudnivalók</h2>
+          <p>
+            A beérkező kérelmeket ésszerű határidőn belül feldolgozzuk. A törlés
+            után bizonyos appfunkciók nem lesznek tovább elérhetők az adott fiókkal,
+            és a törölt tartalmakat nem biztos, hogy vissza tudjuk állítani.
+          </p>
+          <p class="notice">
+            Bizonyos adatokat jogszabályi, biztonsági, visszaélés-megelőzési vagy
+            jogos adminisztrációs okból korlátozott ideig tovább őrizhetünk, ha ez
+            szükséges és indokolt.
+          </p>
+        </section>
+
+        <section>
+          <h2>Kapcsolódó dokumentumok</h2>
+          <p>
+            Az adatkezelés részleteiről és az alkalmazás használatának feltételeiről
+            az alábbi oldalakon talál további információt.
+          </p>
+          <div class="links">
+            <a class="secondary-link" href="privacy-policy.html">Adatvédelmi irányelvek</a>
+            <a class="secondary-link" href="terms-and-conditions.html">Felhasználási feltételek</a>
+          </div>
+        </section>
+      </main>
+
+      <footer>
+        <p>CatchPoint adattörlési kérelem - 2026. május 25.</p>
+      </footer>
+    </div>
+  </body>
+</html>
