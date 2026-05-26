@@ -1231,6 +1231,33 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                             }
                             return true;
                           }).toList();
+                          // sort cluster entries by weight (descending) so heaviest appear first
+                          double _parseWeightFromEntry(
+                            Map<String, dynamic>? e,
+                          ) {
+                            try {
+                              final doc = e == null
+                                  ? null
+                                  : e['doc'] as Map<String, dynamic>?;
+                              final raw = doc != null
+                                  ? doc['weight']
+                                  : e?['weight'];
+                              if (raw == null) return double.negativeInfinity;
+                              if (raw is num) return raw.toDouble();
+                              if (raw is String) {
+                                final s = raw.replaceAll(',', '.');
+                                final v = double.tryParse(s);
+                                return v ?? double.negativeInfinity;
+                              }
+                            } catch (_) {}
+                            return double.negativeInfinity;
+                          }
+
+                          clusterEntries.sort(
+                            (a, b) => _parseWeightFromEntry(
+                              b,
+                            ).compareTo(_parseWeightFromEntry(a)),
+                          );
                           // ignore: avoid_print
                           print(
                             'cluster builder tapped: plugin markers=${markers.length}, bbox matched entries=${clusterEntries.length}',
