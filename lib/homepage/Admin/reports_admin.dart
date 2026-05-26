@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
+import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
 
 class ReportsAdminScreen extends StatefulWidget {
   const ReportsAdminScreen({Key? key}) : super(key: key);
@@ -240,6 +241,81 @@ class _ReportsAdminScreenState extends State<ReportsAdminScreen> {
     }
   }
 
+  Future<Map<String, dynamic>?> _fetchImageDataForReport(
+    Map<String, dynamic> reportData,
+  ) async {
+    try {
+      final String? imageDocId = reportData['imageDocId'] as String?;
+      final String? ownerUid = reportData['imageOwnerUid'] as String?;
+      final String? imageUrl = reportData['imageUrl'] as String?;
+      final String? fileName = reportData['fileName'] as String?;
+      final String? storagePath = reportData['storagePath'] as String?;
+
+      // Try owner-specific doc first
+      if (ownerUid != null && imageDocId != null && !imageDocId.contains('/')) {
+        try {
+          final snap = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(ownerUid)
+              .collection('images')
+              .doc(imageDocId)
+              .get();
+          if (snap.exists) return snap.data();
+        } catch (_) {}
+      }
+
+      // Try top-level images collection by docId
+      if (imageDocId != null && !imageDocId.contains('/')) {
+        try {
+          final snap = await FirebaseFirestore.instance
+              .collection('images')
+              .doc(imageDocId)
+              .get();
+          if (snap.exists) return snap.data();
+        } catch (_) {}
+      }
+
+      // Try to find by storagePath or fileName or url via collectionGroup
+      try {
+        if (storagePath != null && storagePath.isNotEmpty) {
+          final cg = await FirebaseFirestore.instance
+              .collectionGroup('images')
+              .where('storagePath', isEqualTo: storagePath)
+              .limit(1)
+              .get();
+          if (cg.docs.isNotEmpty) return cg.docs.first.data();
+        }
+      } catch (_) {}
+
+      try {
+        if (fileName != null && fileName.isNotEmpty) {
+          final cg = await FirebaseFirestore.instance
+              .collectionGroup('images')
+              .where('fileName', isEqualTo: fileName)
+              .limit(1)
+              .get();
+          if (cg.docs.isNotEmpty) return cg.docs.first.data();
+        }
+      } catch (_) {}
+
+      try {
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          final cg = await FirebaseFirestore.instance
+              .collectionGroup('images')
+              .where('url', isEqualTo: imageUrl)
+              .limit(1)
+              .get();
+          if (cg.docs.isNotEmpty) return cg.docs.first.data();
+        }
+      } catch (_) {}
+
+      // As a last resort, return the reportData itself (so at least imageUrl is shown)
+      return reportData;
+    } catch (_) {
+      return reportData;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -327,6 +403,38 @@ class _ReportsAdminScreenState extends State<ReportsAdminScreen> {
                           : const SizedBox(width: 60, height: 60),
                       title: Text('$reason — $reporter'),
                       subtitle: Text(note.toString()),
+                      onTap: imageUrl != null || data.isNotEmpty
+                          ? () async {
+                              // show loading
+                              showDialog<void>(
+                                context: context,
+                                barrierDismissible: false,
+                                builder: (c) => const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                              );
+                              // fetch related image metadata (best-effort)
+                              final fetched = await _fetchImageDataForReport(
+                                data,
+                              );
+                              // hide loading
+                              try {
+                                Navigator.of(context).pop();
+                              } catch (_) {}
+                              // merge fetched image data with report data (report fields override)
+                              final merged = <String, dynamic>{};
+                              if (fetched != null) merged.addAll(fetched);
+                              merged.addAll(data);
+                              // show detail dialog with merged data
+                              showDialog<void>(
+                                context: context,
+                                builder: (c) => PhotoDetailDialog(
+                                  url: merged['url'] as String? ?? imageUrl,
+                                  doc: merged,
+                                ),
+                              );
+                            }
+                          : null,
                       trailing: PopupMenuButton<String>(
                         onSelected: (v) async {
                           if (v == 'delete_report') {
