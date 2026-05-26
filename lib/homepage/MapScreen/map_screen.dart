@@ -18,6 +18,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:login_fish_app/homepage/MapScreen/metadata_dialog.dart';
 import 'package:login_fish_app/homepage/MapScreen/cluster_sheet.dart';
+import 'package:login_fish_app/homepage/MapScreen/cluster_statistics.dart';
 import 'package:login_fish_app/homepage/EventScreen/event_screen.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:login_fish_app/homepage/GalleryScreen/Gallery.dart';
@@ -1234,12 +1235,235 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                           print(
                             'cluster builder tapped: plugin markers=${markers.length}, bbox matched entries=${clusterEntries.length}',
                           );
-                          await showClusterEntries(
-                            context,
-                            clusterEntries,
-                            (entry) => _showPhotoDialog(
-                              entry['url'] as String,
-                              entry['doc'] as Map<String, dynamic>,
+                          // compute visible count for these entries (doc or url present)
+                          final clusterVisibleCount = clusterEntries.where((e) {
+                            if (e == null) return false;
+                            final doc = e['doc'] as Map<String, dynamic>?;
+                            final url = e['url'] as String?;
+                            return (doc != null) ||
+                                (url != null && url.isNotEmpty);
+                          }).length;
+                          final showStats =
+                              clusterVisibleCount >= 10 ||
+                              clusterEntries.length >= 10 ||
+                              markers.length >= 10;
+                          // Show a simple modal with count and list (simplified behavior)
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => DraggableScrollableSheet(
+                              initialChildSize: 0.75,
+                              minChildSize: 0.4,
+                              maxChildSize: 0.95,
+                              expand: false,
+                              builder: (context, scrollCtrl) {
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.surfaceColor,
+                                    borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(12),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.all(12.0),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            Text(
+                                              'Képek a környéken',
+                                              style: TextStyle(
+                                                color: AppTheme.textColor,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (showStats)
+                                                  Padding(
+                                                    padding:
+                                                        const EdgeInsets.only(
+                                                          right: 8.0,
+                                                        ),
+                                                    child: ElevatedButton.icon(
+                                                      style:
+                                                          ElevatedButton.styleFrom(
+                                                            backgroundColor:
+                                                                AppTheme
+                                                                    .primaryColor,
+                                                          ),
+                                                      icon: const Icon(
+                                                        Icons.bar_chart,
+                                                      ),
+                                                      label: const Text(
+                                                        'Statisztikák',
+                                                      ),
+                                                      onPressed: () {
+                                                        Navigator.of(
+                                                          context,
+                                                        ).push(
+                                                          MaterialPageRoute(
+                                                            builder: (c) =>
+                                                                ClusterStatisticsScreen(
+                                                                  entries:
+                                                                      clusterEntries,
+                                                                ),
+                                                          ),
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                                IconButton(
+                                                  icon: Icon(
+                                                    Icons.close,
+                                                    color: AppTheme.textColor,
+                                                  ),
+                                                  onPressed: () => Navigator.of(
+                                                    context,
+                                                  ).pop(),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: ListView.builder(
+                                          controller: scrollCtrl,
+                                          itemCount: clusterEntries.length,
+                                          itemBuilder: (ctx, idx) {
+                                            final item = clusterEntries[idx];
+                                            final url =
+                                                item['url'] as String? ?? '';
+                                            final doc =
+                                                item['doc']
+                                                    as Map<String, dynamic>? ??
+                                                {};
+                                            return Card(
+                                              margin:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 12,
+                                                    vertical: 8,
+                                                  ),
+                                              color: AppTheme.surfaceColor,
+                                              child: InkWell(
+                                                onTap: () {
+                                                  Navigator.of(context).pop();
+                                                  _showPhotoDialog(
+                                                    item['url'] as String,
+                                                    item['doc']
+                                                        as Map<String, dynamic>,
+                                                  );
+                                                },
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment
+                                                          .stretch,
+                                                  children: [
+                                                    if (url.isNotEmpty)
+                                                      ClipRRect(
+                                                        borderRadius:
+                                                            const BorderRadius.vertical(
+                                                              top:
+                                                                  Radius.circular(
+                                                                    8,
+                                                                  ),
+                                                            ),
+                                                        child: CachedNetworkImage(
+                                                          imageUrl: url,
+                                                          width:
+                                                              double.infinity,
+                                                          height: 180,
+                                                          fit: BoxFit.cover,
+                                                          placeholder: (c, u) => Container(
+                                                            width:
+                                                                double.infinity,
+                                                            height: 180,
+                                                            color: Colors
+                                                                .grey
+                                                                .shade300,
+                                                            child: const Center(
+                                                              child:
+                                                                  CircularProgressIndicator(
+                                                                    strokeWidth:
+                                                                        2.0,
+                                                                  ),
+                                                            ),
+                                                          ),
+                                                          errorWidget:
+                                                              (
+                                                                c,
+                                                                u,
+                                                                e,
+                                                              ) => Container(
+                                                                width: double
+                                                                    .infinity,
+                                                                height: 180,
+                                                                color: Colors
+                                                                    .grey
+                                                                    .shade300,
+                                                                child: const Icon(
+                                                                  Icons
+                                                                      .broken_image,
+                                                                ),
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    Padding(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            12.0,
+                                                          ),
+                                                      child: Column(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          if (doc['species'] !=
+                                                              null)
+                                                            Text(
+                                                              'Fajta: ${doc['species']}',
+                                                              style: TextStyle(
+                                                                color: AppTheme
+                                                                    .textColor,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                              ),
+                                                            ),
+                                                          if (doc['weight'] !=
+                                                              null)
+                                                            Padding(
+                                                              padding:
+                                                                  const EdgeInsets.only(
+                                                                    top: 6.0,
+                                                                  ),
+                                                              child: Text(
+                                                                'Tömeg: ${doc['weight']} kg',
+                                                                style: TextStyle(
+                                                                  color: AppTheme
+                                                                      .textColor,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
                           );
                         } catch (_) {}
@@ -1329,6 +1553,13 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     print(
                       'onClusterTap: plugin markers=${cluster.markers.length}, bbox matched entries=${clusterEntries.length}',
                     );
+                    // compute visible count (entries with doc or url)
+                    final clusterVisibleCount = clusterEntries.where((e) {
+                      if (e == null) return false;
+                      final doc = e['doc'] as Map<String, dynamic>?;
+                      final url = e['url'] as String?;
+                      return (doc != null) || (url != null && url.isNotEmpty);
+                    }).length;
                     // show a full, scrollable list so user can browse multiple catches without zooming
                     showModalBottomSheet(
                       context: context,
@@ -1356,19 +1587,55 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                         MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
-                                        'Képek a környéken (${clusterEntries.length})',
+                                        'Képek a környéken',
                                         style: TextStyle(
                                           color: AppTheme.textColor,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                      IconButton(
-                                        icon: Icon(
-                                          Icons.close,
-                                          color: AppTheme.textColor,
-                                        ),
-                                        onPressed: () =>
-                                            Navigator.of(context).pop(),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (clusterVisibleCount >= 10 ||
+                                              clusterEntries.length >= 10 ||
+                                              cluster.markers.length >= 10)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                right: 8.0,
+                                              ),
+                                              child: ElevatedButton.icon(
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor:
+                                                      AppTheme.primaryColor,
+                                                ),
+                                                icon: const Icon(
+                                                  Icons.bar_chart,
+                                                ),
+                                                label: const Text(
+                                                  'Statisztikák',
+                                                ),
+                                                onPressed: () {
+                                                  Navigator.of(context).push(
+                                                    MaterialPageRoute(
+                                                      builder: (c) =>
+                                                          ClusterStatisticsScreen(
+                                                            entries:
+                                                                clusterEntries,
+                                                          ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.close,
+                                              color: AppTheme.textColor,
+                                            ),
+                                            onPressed: () =>
+                                                Navigator.of(context).pop(),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
