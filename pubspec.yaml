@@ -110,6 +110,7 @@ flutter:
   assets:
     - assets/icon/
     - assets/fish.jpg
+    - assets/fish_loader_icon.png
 
 # Configuration for flutter_launcher_icons (run the generator after
 # you copy your icon to `assets/icon/app_icon_uszo.png`):

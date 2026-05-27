@@ -28,6 +28,7 @@ import 'package:login_fish_app/homepage/FilterScreen/filter.dart'
     as filter_screen;
 import 'package:login_fish_app/homepage/AIScreen/ai_assistant.dart';
 import 'package:login_fish_app/services/filter_bus.dart';
+import 'package:login_fish_app/homepage/widgets/fish_loader.dart';
 
 String _formatWeight(dynamic w) {
   if (w == null) return '-';
@@ -818,9 +819,14 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       // If it's a fish, open metadata dialog (user must input species manually)
       Map<String, dynamic>? finalMetadata;
       try {
+        // Stop showing the global uploading overlay while the user fills metadata
+        if (mounted) setState(() => _uploading = false);
         finalMetadata = await showMetadataDialog(context, _imageFile);
       } catch (e) {
         finalMetadata = null;
+      } finally {
+        // If the user provided metadata and we continue, show uploading again while saving
+        if (mounted && finalMetadata != null) setState(() => _uploading = true);
       }
 
       if (finalMetadata == null) {
@@ -1928,11 +1934,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ),
             ),
           if (_uploading)
-            const Positioned(
-              left: 0,
-              right: 0,
-              top: 0,
-              child: LinearProgressIndicator(),
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.35),
+                child: Center(child: FishLoader(size: 120)),
+              ),
             ),
           // Gallery button top-right
           // Event button top-left (under header) - placeholder icon, behaviour to be added
