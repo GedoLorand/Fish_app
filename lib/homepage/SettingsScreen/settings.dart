@@ -119,9 +119,48 @@ class _SettingsState extends State<Settings> {
             DropdownButton<String>(
               value: _language,
               items: [
-                DropdownMenuItem(value: 'hu', child: Text('lang_hu'.tr)),
-                DropdownMenuItem(value: 'ro', child: Text('lang_ro'.tr)),
-                DropdownMenuItem(value: 'en', child: Text('lang_en'.tr)),
+                DropdownMenuItem(
+                  value: 'hu',
+                  child: Row(
+                    children: [
+                      Image.asset(
+                        'assets/icon/hu_icon.png',
+                        width: 24,
+                        height: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      Text('lang_hu'.tr),
+                    ],
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'ro',
+                  child: Row(
+                    children: [
+                      Image.asset(
+                        'assets/icon/ro_icon.png',
+                        width: 24,
+                        height: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      Text('lang_ro'.tr),
+                    ],
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'en',
+                  child: Row(
+                    children: [
+                      Image.asset(
+                        'assets/icon/en_icon.png',
+                        width: 24,
+                        height: 24,
+                      ),
+                      const SizedBox(width: 8),
+                      Text('lang_en'.tr),
+                    ],
+                  ),
+                ),
               ],
               onChanged: (v) {
                 if (v == null) return;
