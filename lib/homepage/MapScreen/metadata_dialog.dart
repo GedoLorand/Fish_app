@@ -68,7 +68,10 @@ Future<Map<String, dynamic>?> showMetadataDialog(
     builder: (context) {
       return AlertDialog(
         backgroundColor: AppTheme.surfaceColor,
-        title: Text('photo_details'.tr, style: TextStyle(color: AppTheme.textColor)),
+        title: Text(
+          'photo_details'.tr,
+          style: TextStyle(color: AppTheme.textColor),
+        ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -109,8 +112,9 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                           color: AppTheme.textColor.withOpacity(0.85),
                         ),
                       ),
-                      validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'required'.tr : null,
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'required'.tr
+                          : null,
                     ),
                     TextFormField(
                       controller: weightCtrl,
@@ -233,11 +237,21 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                 final data = <String, dynamic>{
                   'species': speciesCtrl.text.trim(),
                   'weight': weight ?? weightCtrl.text.trim(),
-                  'bait': baitCtrl.text.trim().isEmpty ? null : baitCtrl.text.trim(),
-                  'feed': feedCtrl.text.trim().isEmpty ? null : feedCtrl.text.trim(),
-                  'waterTemp': tempCtrl.text.trim().isEmpty ? null : tempCtrl.text.trim(),
-                  'oxygen': oxygenCtrl.text.trim().isEmpty ? null : oxygenCtrl.text.trim(),
-                  'notes': notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+                  'bait': baitCtrl.text.trim().isEmpty
+                      ? null
+                      : baitCtrl.text.trim(),
+                  'feed': feedCtrl.text.trim().isEmpty
+                      ? null
+                      : feedCtrl.text.trim(),
+                  'waterTemp': tempCtrl.text.trim().isEmpty
+                      ? null
+                      : tempCtrl.text.trim(),
+                  'oxygen': oxygenCtrl.text.trim().isEmpty
+                      ? null
+                      : oxygenCtrl.text.trim(),
+                  'notes': notesCtrl.text.trim().isEmpty
+                      ? null
+                      : notesCtrl.text.trim(),
                 };
                 Navigator.of(context).pop(data);
               }
