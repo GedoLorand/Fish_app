@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 
 // TextInputFormatter that normalizes comma to dot, allows only digits and a single
@@ -67,7 +68,7 @@ Future<Map<String, dynamic>?> showMetadataDialog(
     builder: (context) {
       return AlertDialog(
         backgroundColor: AppTheme.surfaceColor,
-        title: Text('Kép adatai', style: TextStyle(color: AppTheme.textColor)),
+        title: Text('photo_details'.tr, style: TextStyle(color: AppTheme.textColor)),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -103,19 +104,19 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                       controller: speciesCtrl,
                       style: TextStyle(color: AppTheme.textColor),
                       decoration: InputDecoration(
-                        labelText: 'Fajta',
+                        labelText: 'species_label'.tr,
                         labelStyle: TextStyle(
                           color: AppTheme.textColor.withOpacity(0.85),
                         ),
                       ),
                       validator: (v) =>
-                          (v == null || v.trim().isEmpty) ? 'Kötelező' : null,
+                          (v == null || v.trim().isEmpty) ? 'required'.tr : null,
                     ),
                     TextFormField(
                       controller: weightCtrl,
                       style: TextStyle(color: AppTheme.textColor),
                       decoration: InputDecoration(
-                        labelText: 'Tömeg (kg)',
+                        labelText: 'weight_kg'.tr,
                         labelStyle: TextStyle(
                           color: AppTheme.textColor.withOpacity(0.85),
                         ),
@@ -128,26 +129,26 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                         WeightInputFormatter(),
                       ],
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty) return 'Kötelező';
+                        if (v == null || v.trim().isEmpty) return 'required'.tr;
                         final txt = v.trim().replaceAll(',', '.');
                         final parsed = double.tryParse(txt);
-                        if (parsed == null) return 'Érvénytelen szám';
+                        if (parsed == null) return 'invalid_number'.tr;
                         final parts = txt.split('.');
                         if (parts.length > 1 && parts[1].length > 3) {
-                          return 'Legfeljebb 3 tizedesjegy engedélyezett';
+                          return 'max_decimals'.tr;
                         }
                         return null;
                       },
                     ),
                     const SizedBox(height: 8.0),
                     ExpansionTile(
-                      title: const Text('Bővebben'),
+                      title: Text('more'.tr),
                       children: [
                         TextFormField(
                           controller: baitCtrl,
                           style: TextStyle(color: AppTheme.textColor),
                           decoration: InputDecoration(
-                            labelText: 'Csali',
+                            labelText: 'bait'.tr,
                             labelStyle: TextStyle(
                               color: AppTheme.textColor.withOpacity(0.85),
                             ),
@@ -157,7 +158,7 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                           controller: feedCtrl,
                           style: TextStyle(color: AppTheme.textColor),
                           decoration: InputDecoration(
-                            labelText: 'Etető',
+                            labelText: 'feed'.tr,
                             labelStyle: TextStyle(
                               color: AppTheme.textColor.withOpacity(0.85),
                             ),
@@ -167,7 +168,7 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                           controller: tempCtrl,
                           style: TextStyle(color: AppTheme.textColor),
                           decoration: InputDecoration(
-                            labelText: 'Víz hőmérséklet (°C)',
+                            labelText: 'water_temp'.tr,
                             labelStyle: TextStyle(
                               color: AppTheme.textColor.withOpacity(0.85),
                             ),
@@ -180,7 +181,7 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                           controller: oxygenCtrl,
                           style: TextStyle(color: AppTheme.textColor),
                           decoration: InputDecoration(
-                            labelText: 'Oxigén tartalom (mg/L)',
+                            labelText: 'oxygen'.tr,
                             labelStyle: TextStyle(
                               color: AppTheme.textColor.withOpacity(0.85),
                             ),
@@ -193,7 +194,7 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                           controller: notesCtrl,
                           style: TextStyle(color: AppTheme.textColor),
                           decoration: InputDecoration(
-                            labelText: 'Leírás',
+                            labelText: 'description'.tr,
                             labelStyle: TextStyle(
                               color: AppTheme.textColor.withOpacity(0.85),
                             ),
@@ -211,7 +212,7 @@ Future<Map<String, dynamic>?> showMetadataDialog(
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(null),
-            child: const Text('Mégse'),
+            child: Text('cancel'.tr),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -232,26 +233,16 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                 final data = <String, dynamic>{
                   'species': speciesCtrl.text.trim(),
                   'weight': weight ?? weightCtrl.text.trim(),
-                  'bait': baitCtrl.text.trim().isEmpty
-                      ? null
-                      : baitCtrl.text.trim(),
-                  'feed': feedCtrl.text.trim().isEmpty
-                      ? null
-                      : feedCtrl.text.trim(),
-                  'waterTemp': tempCtrl.text.trim().isEmpty
-                      ? null
-                      : tempCtrl.text.trim(),
-                  'oxygen': oxygenCtrl.text.trim().isEmpty
-                      ? null
-                      : oxygenCtrl.text.trim(),
-                  'notes': notesCtrl.text.trim().isEmpty
-                      ? null
-                      : notesCtrl.text.trim(),
+                  'bait': baitCtrl.text.trim().isEmpty ? null : baitCtrl.text.trim(),
+                  'feed': feedCtrl.text.trim().isEmpty ? null : feedCtrl.text.trim(),
+                  'waterTemp': tempCtrl.text.trim().isEmpty ? null : tempCtrl.text.trim(),
+                  'oxygen': oxygenCtrl.text.trim().isEmpty ? null : oxygenCtrl.text.trim(),
+                  'notes': notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
                 };
                 Navigator.of(context).pop(data);
               }
             },
-            child: const Text('Mentés'),
+            child: Text('save'.tr),
           ),
         ],
       );
