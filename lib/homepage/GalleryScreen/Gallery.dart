@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:login_fish_app/homepage/Header/global_header.dart';
+import 'package:get/get.dart';
 import 'package:login_fish_app/homepage/Header/custom_drawer.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
-import 'package:login_fish_app/homepage/FilterScreen/filter.dart' as filter_screen;
+import 'package:login_fish_app/homepage/FilterScreen/filter.dart'
+    as filter_screen;
 
 class Gallery extends StatefulWidget {
   const Gallery({super.key});
@@ -60,9 +62,7 @@ class _GalleryState extends State<Gallery> {
       appBar: GlobalHeader(),
       drawer: CustomDrawer(),
       body: _uid == null
-          ? const Center(
-              child: Text('Be kell jelentkezned, hogy lásd a galériát'),
-            )
+          ? Center(child: Text('not_logged_in_gallery'.tr))
           : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _photosStream(),
               builder: (context, snapshot) {
@@ -70,7 +70,7 @@ class _GalleryState extends State<Gallery> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text('Még nincsenek képeid'));
+                  return Center(child: Text('no_images_yet'.tr));
                 }
                 final docs = snapshot.data!.docs;
                 return Padding(
@@ -105,7 +105,7 @@ class _GalleryState extends State<Gallery> {
                                     child: Icon(Icons.broken_image),
                                   ),
                                 )
-                              : const Center(child: Text('Nincs kép')),
+                              : Center(child: Text('no_image'.tr)),
                         ),
                       );
                     },
@@ -146,7 +146,9 @@ class _GalleryState extends State<Gallery> {
                   onPressed: () async {
                     await Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (context) => const filter_screen.Filter(restrictToCurrentUser: true),
+                        builder: (context) => const filter_screen.Filter(
+                          restrictToCurrentUser: true,
+                        ),
                       ),
                     );
                   },
@@ -155,7 +157,7 @@ class _GalleryState extends State<Gallery> {
                       Icon(Icons.filter_alt, color: AppTheme.primaryColor),
                       const SizedBox(width: 8),
                       Text(
-                        'Filter',
+                        'filters'.tr,
                         style: TextStyle(
                           color: AppTheme.textColor,
                           fontFamily: AppTheme.fontFamily,
@@ -183,7 +185,7 @@ class _GalleryState extends State<Gallery> {
                     Navigator.of(context).pop({'showOnlyMine': true});
                   },
                   child: Text(
-                    'My Map',
+                    'my_map'.tr,
                     style: TextStyle(
                       color: AppTheme.primaryColor,
                       fontFamily: AppTheme.fontFamily,

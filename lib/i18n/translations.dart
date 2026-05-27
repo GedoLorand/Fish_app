@@ -47,6 +47,10 @@ class AppTranslations extends Translations {
       'lang_hu': 'Magyar',
       'lang_ro': 'Română',
       'lang_en': 'English',
+      'not_logged_in_gallery': 'You must be logged in to view the gallery',
+      'no_images_yet': 'You don\'t have any images yet',
+      'no_image': 'No image',
+      'my_map': 'My Map',
     },
     'hu': {
       // Login / Signup
@@ -92,6 +96,10 @@ class AppTranslations extends Translations {
       'lang_hu': 'Magyar',
       'lang_ro': 'Román',
       'lang_en': 'Angol',
+      'not_logged_in_gallery': 'Be kell jelentkezned, hogy lásd a galériát',
+      'no_images_yet': 'Még nincsenek képeid',
+      'no_image': 'Nincs kép',
+      'my_map': 'Saját térkép',
     },
     'ro': {
       // Login / Signup
@@ -137,6 +145,11 @@ class AppTranslations extends Translations {
       'lang_hu': 'Maghiară',
       'lang_ro': 'Română',
       'lang_en': 'Engleză',
+      'not_logged_in_gallery':
+          'Trebuie să fii autentificat pentru a vedea galeria',
+      'no_images_yet': 'Nu ai încă imagini',
+      'no_image': 'Fără imagine',
+      'my_map': 'Harta mea',
     },
   };
 }
