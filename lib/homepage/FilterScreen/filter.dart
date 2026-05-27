@@ -6,6 +6,7 @@ import 'package:login_fish_app/homepage/Header/custom_drawer.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:login_fish_app/widgets/app_button.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get/get.dart';
 import 'package:login_fish_app/services/filter_bus.dart';
 
 class Filter extends StatefulWidget {
@@ -168,7 +169,7 @@ class _FilterState extends State<Filter> {
         child: ListView(
           children: [
             Text(
-              'Hal fajtája',
+              'fish_type'.tr,
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
@@ -200,7 +201,7 @@ class _FilterState extends State<Filter> {
                       controller: controller,
                       focusNode: focusNode,
                       decoration: InputDecoration(
-                        hintText: 'Írd be vagy válassz',
+                        hintText: 'enter_or_choose'.tr,
                         border: OutlineInputBorder(),
                       ),
                     );
@@ -335,7 +336,7 @@ class _FilterState extends State<Filter> {
 
             // Weight pickers
             Text(
-              'Súly (kg)',
+              'weight_kg'.tr,
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
@@ -347,7 +348,7 @@ class _FilterState extends State<Filter> {
                     children: [
                       Center(
                         child: Text(
-                          'Min súly',
+                          'min_weight'.tr,
                           style: TextStyle(color: AppTheme.textColor),
                         ),
                       ),
@@ -437,7 +438,7 @@ class _FilterState extends State<Filter> {
                                               child: Transform.scale(
                                                 scale: scale,
                                                 child: Text(
-                                                  'Nincs beállítva',
+                                                  'not_set'.tr,
                                                   style: TextStyle(
                                                     fontSize: 14,
                                                     color: diff == 0
@@ -522,7 +523,7 @@ class _FilterState extends State<Filter> {
                     children: [
                       Center(
                         child: Text(
-                          'Max súly',
+                          'max_weight'.tr,
                           style: TextStyle(color: AppTheme.textColor),
                         ),
                       ),
@@ -612,7 +613,7 @@ class _FilterState extends State<Filter> {
                                               child: Transform.scale(
                                                 scale: scale,
                                                 child: Text(
-                                                  'Nincs beállítva',
+                                                  'not_set'.tr,
                                                   style: TextStyle(
                                                     fontSize: 14,
                                                     color: diff == 0
@@ -696,7 +697,7 @@ class _FilterState extends State<Filter> {
 
             // Time interval / granularity
             Text(
-              'Időintervallum',
+              'time_interval'.tr,
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
@@ -708,7 +709,7 @@ class _FilterState extends State<Filter> {
                     children: [
                       Center(
                         child: Text(
-                          'Hónap',
+                          'month'.tr,
                           style: TextStyle(color: AppTheme.textColor),
                         ),
                       ),
@@ -735,20 +736,9 @@ class _FilterState extends State<Filter> {
                           }),
                           // index 0 = placeholder, months 1..12
                           children: List<Widget>.generate(12 + 1, (i) {
-                            final names = [
-                              'Január',
-                              'Február',
-                              'Március',
-                              'Április',
-                              'Május',
-                              'Június',
-                              'Július',
-                              'Augusztus',
-                              'Szeptember',
-                              'Október',
-                              'November',
-                              'December',
-                            ];
+                            final names = List<String>.generate(12, (idx) {
+                              return 'month_${idx + 1}'.tr;
+                            });
                             final diff = (i - _selectedMonthIndex).abs();
                             final opacity = _opacityFor(
                               diff,
@@ -794,10 +784,7 @@ class _FilterState extends State<Filter> {
                                   ),
                                   child: Transform.scale(
                                     scale: scale,
-                                    child: Text(
-                                      'Nincs beállítva',
-                                      style: style,
-                                    ),
+                                    child: Text('not_set'.tr, style: style),
                                   ),
                                 ),
                               );
@@ -840,7 +827,7 @@ class _FilterState extends State<Filter> {
                     children: [
                       Center(
                         child: Text(
-                          'Év',
+                          'year'.tr,
                           style: TextStyle(color: AppTheme.textColor),
                         ),
                       ),
@@ -908,7 +895,7 @@ class _FilterState extends State<Filter> {
                                     child: Transform.scale(
                                       scale: scale,
                                       child: Text(
-                                        'Nincs beállítva',
+                                        'not_set'.tr,
                                         style: TextStyle(
                                           fontSize: 16,
                                           color: AppTheme.textColor.withOpacity(
@@ -978,7 +965,7 @@ class _FilterState extends State<Filter> {
                     children: [
                       Center(
                         child: Text(
-                          'Kezdő időpont',
+                          'start_time'.tr,
                           style: TextStyle(color: AppTheme.textColor),
                         ),
                       ),
@@ -1065,7 +1052,7 @@ class _FilterState extends State<Filter> {
                                               child: Transform.scale(
                                                 scale: scale,
                                                 child: Text(
-                                                  'Nincs beállítva',
+                                                  'not_set'.tr,
                                                   style: TextStyle(
                                                     fontSize: 14,
                                                     color: diff == 0
@@ -1151,7 +1138,7 @@ class _FilterState extends State<Filter> {
                               }),
                               child: Text(
                                 startTime == null
-                                    ? 'Kezdő időpont'
+                                    ? 'start_time'.tr
                                     : startTime!.format(context),
                               ),
                             ),
@@ -1165,7 +1152,7 @@ class _FilterState extends State<Filter> {
                     children: [
                       Center(
                         child: Text(
-                          'Záró időpont',
+                          'end_time'.tr,
                           style: TextStyle(color: AppTheme.textColor),
                         ),
                       ),
@@ -1251,7 +1238,7 @@ class _FilterState extends State<Filter> {
                                               child: Transform.scale(
                                                 scale: scale,
                                                 child: Text(
-                                                  'Nincs beállítva',
+                                                  'not_set'.tr,
                                                   style: TextStyle(
                                                     fontSize: 14,
                                                     color: diff == 0
@@ -1337,7 +1324,7 @@ class _FilterState extends State<Filter> {
                               }),
                               child: Text(
                                 endTime == null
-                                    ? 'Záró időpont'
+                                    ? 'end_time'.tr
                                     : endTime!.format(context),
                               ),
                             ),
@@ -1349,7 +1336,7 @@ class _FilterState extends State<Filter> {
             const SizedBox(height: 16),
 
             Text(
-              'Dátum',
+              'date'.tr,
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
@@ -1358,7 +1345,7 @@ class _FilterState extends State<Filter> {
               onPressed: () => _selectDate(context),
               child: Text(
                 selectedDate == null
-                    ? 'Válassz dátumot'
+                    ? 'choose_date'.tr
                     : '${selectedDate!.year}-${selectedDate!.month.toString().padLeft(2, '0')}-${selectedDate!.day.toString().padLeft(2, '0')}',
               ),
             ),
