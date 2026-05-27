@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
+import 'package:get/get.dart';
 
 class PhotoDetailDialog extends StatefulWidget {
   final String? url;
@@ -183,7 +184,7 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      'Feltöltő: ${doc['uploaderName']}',
+                                      '${'uploader'.tr}: ${doc['uploaderName']}',
                                       style: TextStyle(
                                         color: AppTheme.textColor,
                                         fontWeight: FontWeight.bold,
@@ -224,7 +225,7 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                             child: TextButton(
                               onPressed: () => Navigator.of(context).pop(),
                               child: Text(
-                                'Bezár',
+                                'cancel'.tr,
                                 style: TextStyle(color: AppTheme.primaryColor),
                               ),
                             ),
@@ -252,12 +253,12 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
       ),
       builder: (ctx) {
         final reasons = [
-          'rossz képminőség',
-          'hibás kép',
-          'nem hal',
-          'hamis adat',
-          'csalás',
-          'egyéb',
+          'reason_poor_quality'.tr,
+          'reason_wrong_image'.tr,
+          'reason_not_fish'.tr,
+          'reason_fake_data'.tr,
+          'reason_fraud'.tr,
+          'reason_other'.tr,
         ];
         String? selected;
         final TextEditingController noteCtrl = TextEditingController();
@@ -276,8 +277,8 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Jelentés oka',
+                        Text(
+                          'report_reason'.tr,
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -299,7 +300,7 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                           controller: noteCtrl,
                           style: TextStyle(color: AppTheme.textColor),
                           decoration: InputDecoration(
-                            labelText: 'Megjegyzés (opcionális)',
+                            labelText: 'report_note_optional'.tr,
                             labelStyle: TextStyle(
                               color: AppTheme.textColor.withOpacity(0.7),
                             ),
@@ -312,7 +313,7 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                           children: [
                             TextButton(
                               onPressed: () => Navigator.of(ctx).pop(),
-                              child: const Text('Mégse'),
+                              child: Text('cancel'.tr),
                             ),
                             const SizedBox(width: 8),
                             ElevatedButton(
@@ -329,7 +330,7 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                                       );
                                       if (mounted) Navigator.of(ctx).pop();
                                     },
-                              child: const Text('Hiba jelentés'),
+                              child: Text('report_submit'.tr),
                             ),
                           ],
                         ),
@@ -379,14 +380,14 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
 
       // Optionally: trigger a mailto fallback for immediate manual email by user
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Köszönjük, a jelentést elküldtük.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Hiba történt: ${e.toString()}')));
+      ).showSnackBar(SnackBar(content: Text('report_sent'.tr)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${'error_occurred'.tr}: ${e.toString()}')),
+      );
     }
   }
 
@@ -394,21 +395,21 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
     // simple mapping / beautifier for known fields
     switch (key) {
       case 'species':
-        return 'Fajta';
+        return 'species_label'.tr;
       case 'weight':
-        return 'Tömeg';
+        return 'weight_kg'.tr;
       case 'notes':
-        return 'Leírás';
+        return 'description'.tr;
       case 'description':
-        return 'Leírás';
+        return 'description'.tr;
       case 'feed':
-        return 'Etető';
+        return 'feed'.tr;
       case 'oxygen':
-        return 'Oxigén tartalom';
+        return 'oxygen'.tr;
       case 'bait':
-        return 'Csali';
+        return 'bait'.tr;
       case 'waterTemp':
-        return 'Víz hőmérséklet';
+        return 'water_temp'.tr;
       default:
         // convert camelCase / snake_case to spaced label
         return key
