@@ -3,6 +3,7 @@ import 'package:login_fish_app/homepage/Header/global_header.dart';
 import 'package:login_fish_app/homepage/Header/custom_drawer.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get/get.dart';
 
 class AIAssistantScreen extends StatefulWidget {
   const AIAssistantScreen({Key? key}) : super(key: key);
@@ -12,8 +13,9 @@ class AIAssistantScreen extends StatefulWidget {
 }
 
 class _AIAssistantScreenState extends State<AIAssistantScreen>
-  with SingleTickerProviderStateMixin {
-  bool _isDayMode = false; // false = night (current), true = day (light background)
+    with SingleTickerProviderStateMixin {
+  bool _isDayMode =
+      false; // false = night (current), true = day (light background)
   String? selectedFishType;
   final TextEditingController speciesController = TextEditingController();
   final TextEditingController questionController = TextEditingController();
@@ -44,8 +46,13 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
     _loadDynamicSpecies();
     speciesController.addListener(_onSpeciesChanged);
     questionController.addListener(_onQuestionChanged);
-    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 0.99, end: 1.01).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat(reverse: true);
+    _pulseAnim = Tween<double>(begin: 0.99, end: 1.01).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
   }
 
   void _onSpeciesChanged() {
@@ -87,13 +94,13 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
   void _askAiGeneral() {
     final q = questionController.text.trim();
     if (q.isEmpty) {
-      _addMessage('assistant', 'Kérlek írj be egy kérdést.');
+      _addMessage('assistant', 'please_enter_question'.tr);
       return;
     }
     _addMessage('user', q);
     _addMessage(
       'assistant',
-      'Válasz a következő kérdésre: "$q"\n(Helykitöltő válasz)',
+      '${'ai_response_prefix'.tr} "$q"\n${'placeholder_response'.tr}',
     );
     questionController.clear();
   }
@@ -104,14 +111,11 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
         ? selectedFishType!
         : (typed.isNotEmpty ? typed : null);
     if (species == null) {
-      _addMessage('assistant', 'Kérlek válassz vagy írj be egy halfajtát.');
+      _addMessage('assistant', 'choose_or_type_species'.tr);
       return;
     }
-    _addMessage('user', 'Kérdés a halfajtáról: $species');
-    _addMessage(
-      'assistant',
-      '$species — Részletes információk (helykitöltő):\n- Jellemzők: ...\n- Élőhely: ...\n- Fogási tippek: ...',
-    );
+    _addMessage('user', '${'question_about_species'.tr}$species');
+    _addMessage('assistant', '$species${'species_info_placeholder'.tr}');
     setState(() => _messageLocked = true);
   }
 
@@ -159,7 +163,9 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
   Widget build(BuildContext context) {
     final bgColor = _isDayMode ? Colors.white : AppTheme.surfaceColor;
     final textColor = _isDayMode ? Colors.black87 : AppTheme.textColor;
-    final surfaceColor = _isDayMode ? Colors.grey.shade200 : AppTheme.surfaceColor;
+    final surfaceColor = _isDayMode
+        ? Colors.grey.shade200
+        : AppTheme.surfaceColor;
     final primaryColor = AppTheme.primaryColor;
 
     final source = dynamicFishSuggestions.isNotEmpty
@@ -189,7 +195,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              'AI Asszisztens',
+                              'ai_assistant'.tr,
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
@@ -198,13 +204,16 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
                             ),
                             const SizedBox(width: 8),
                             IconButton(
-                              tooltip: _isDayMode ? 'Nappali mód' : 'Éjjeli mód',
+                              tooltip: _isDayMode
+                                  ? 'day_mode'.tr
+                                  : 'night_mode'.tr,
                               icon: Icon(
                                 _isDayMode ? Icons.wb_sunny : Icons.nights_stay,
                                 color: textColor,
                                 size: 20,
                               ),
-                              onPressed: () => setState(() => _isDayMode = !_isDayMode),
+                              onPressed: () =>
+                                  setState(() => _isDayMode = !_isDayMode),
                             ),
                           ],
                         ),
@@ -229,75 +238,103 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
                         children: [
                           Expanded(
                             child: Autocomplete<String>(
-                              optionsBuilder: (TextEditingValue textEditingValue) {
-                                final q = textEditingValue.text.toLowerCase();
-                                if (q.isEmpty) return const Iterable<String>.empty();
-                                return source.where((s) => s.toLowerCase().contains(q));
-                              },
+                              optionsBuilder:
+                                  (TextEditingValue textEditingValue) {
+                                    final q = textEditingValue.text
+                                        .toLowerCase();
+                                    if (q.isEmpty)
+                                      return const Iterable<String>.empty();
+                                    return source.where(
+                                      (s) => s.toLowerCase().contains(q),
+                                    );
+                                  },
                               onSelected: (s) => setState(() {
                                 selectedFishType = s;
                                 speciesController.text = s;
-                                if (_autocompleteController != null) _autocompleteController!.text = s;
+                                if (_autocompleteController != null)
+                                  _autocompleteController!.text = s;
                                 _messageLocked = true;
                               }),
-                              fieldViewBuilder: (
-                                context,
-                                controller,
-                                focusNode,
-                                onEditingComplete,
-                              ) {
-                                _autocompleteController = controller;
-                                if (!_autocompleteListenerAttached) {
-                                  controller.addListener(_onAutocompleteChanged);
-                                  _autocompleteListenerAttached = true;
-                                }
-                                return TextField(
-                                  enabled: !_speciesLocked,
-                                  controller: controller,
-                                  focusNode: focusNode,
-                                  decoration: InputDecoration(
-                                    hintText: 'Halfaj megadása',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                );
-                              },
-                              optionsViewBuilder: (context, onSelectedCallback, options) {
-                                final opts = options.toList();
-                                return Align(
-                                  alignment: Alignment.topLeft,
-                                  child: Material(
-                                    elevation: 4,
-                                    child: ConstrainedBox(
-                                      constraints: BoxConstraints(
-                                        maxHeight: 220,
-                                        maxWidth: MediaQuery.of(context).size.width - 100,
+                              fieldViewBuilder:
+                                  (
+                                    context,
+                                    controller,
+                                    focusNode,
+                                    onEditingComplete,
+                                  ) {
+                                    _autocompleteController = controller;
+                                    if (!_autocompleteListenerAttached) {
+                                      controller.addListener(
+                                        _onAutocompleteChanged,
+                                      );
+                                      _autocompleteListenerAttached = true;
+                                    }
+                                    return TextField(
+                                      enabled: !_speciesLocked,
+                                      controller: controller,
+                                      focusNode: focusNode,
+                                      decoration: InputDecoration(
+                                        hintText: 'species_hint'.tr,
+                                        border: OutlineInputBorder(),
                                       ),
-                                      child: ListView.separated(
-                                        shrinkWrap: true,
-                                        itemCount: opts.length,
-                                        separatorBuilder: (_, __) => const Divider(height: 1),
-                                        itemBuilder: (context, index) {
-                                          final s = opts[index] as String;
-                                          return ListTile(
-                                            title: Text(s, style: TextStyle(color: textColor)),
-                                            onTap: () { onSelectedCallback(s); },
-                                          );
-                                        },
+                                    );
+                                  },
+                              optionsViewBuilder:
+                                  (context, onSelectedCallback, options) {
+                                    final opts = options.toList();
+                                    return Align(
+                                      alignment: Alignment.topLeft,
+                                      child: Material(
+                                        elevation: 4,
+                                        child: ConstrainedBox(
+                                          constraints: BoxConstraints(
+                                            maxHeight: 220,
+                                            maxWidth:
+                                                MediaQuery.of(
+                                                  context,
+                                                ).size.width -
+                                                100,
+                                          ),
+                                          child: ListView.separated(
+                                            shrinkWrap: true,
+                                            itemCount: opts.length,
+                                            separatorBuilder: (_, __) =>
+                                                const Divider(height: 1),
+                                            itemBuilder: (context, index) {
+                                              final s = opts[index] as String;
+                                              return ListTile(
+                                                title: Text(
+                                                  s,
+                                                  style: TextStyle(
+                                                    color: textColor,
+                                                  ),
+                                                ),
+                                                onTap: () {
+                                                  onSelectedCallback(s);
+                                                },
+                                              );
+                                            },
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                );
-                              },
+                                    );
+                                  },
                             ),
                           ),
                           const SizedBox(width: 8),
                           IconButton(
-                            tooltip: 'Lista megnyitása',
+                            tooltip: 'open_list'.tr,
                             icon: Icon(Icons.list, color: textColor),
-                            onPressed: _speciesLocked ? null : () => _showSpeciesPicker(context, source, textColor),
+                            onPressed: _speciesLocked
+                                ? null
+                                : () => _showSpeciesPicker(
+                                    context,
+                                    source,
+                                    textColor,
+                                  ),
                           ),
                           IconButton(
-                            tooltip: 'Törlés',
+                            tooltip: 'clear'.tr,
                             icon: Icon(
                               Icons.clear,
                               color: textColor.withOpacity(0.6),
@@ -305,7 +342,8 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
                             onPressed: () => setState(() {
                               selectedFishType = null;
                               speciesController.clear();
-                              if (_autocompleteController != null) _autocompleteController!.clear();
+                              if (_autocompleteController != null)
+                                _autocompleteController!.clear();
                               _messageLocked = false;
                             }),
                           ),
@@ -327,7 +365,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
                               });
                               FocusScope.of(context).unfocus();
                             },
-                            child: const Text('Alkalmazás'),
+                            child: Text('apply'.tr),
                           ),
                         ),
                       ],
@@ -336,7 +374,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
 
                       // Question input
                       Text(
-                        'Kérdezz az AI-tól',
+                        'ask_ai'.tr,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -349,14 +387,11 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
                         controller: questionController,
                         decoration: InputDecoration(
                           hintText: _messageLocked
-                              ? 'Lezárva: előbb töröld a halfajta mezőt'
-                              : 'Írd be a kérdésedet az AI-hoz',
+                              ? 'locked_hint'.tr
+                              : 'enter_question'.tr,
                           border: OutlineInputBorder(),
                           suffixIcon: IconButton(
-                            icon: Icon(
-                              Icons.send,
-                              color: primaryColor,
-                            ),
+                            icon: Icon(Icons.send, color: primaryColor),
                             onPressed: _messageLocked ? null : _askAiGeneral,
                           ),
                         ),
@@ -372,16 +407,24 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
                             scale: _pulseAnim,
                             child: Container(
                               width: double.infinity,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 14,
+                              ),
                               decoration: BoxDecoration(
                                 color: surfaceColor.withOpacity(0.20),
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: textColor.withOpacity(0.10)),
+                                border: Border.all(
+                                  color: textColor.withOpacity(0.10),
+                                ),
                               ),
                               child: Text(
-                                'Az AI bot segítségével az első mezőben megadhatjuk a halfajtát és egy általános leírást kaphatunk a szokásairól, méretéről, valamint élőhelyéről. Ha szeretnénk, a második mezőben kérdezhetünk és kommunikálhatunk az AI-val.',
+                                'ai_helper'.tr,
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 16, color: textColor.withOpacity(0.95)),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: textColor.withOpacity(0.95),
+                                ),
                               ),
                             ),
                           ),
@@ -392,7 +435,7 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
                       if (_messages.isNotEmpty) ...[
                         const SizedBox(height: 8),
                         Text(
-                          'Válaszok',
+                          'answers'.tr,
                           style: TextStyle(
                             color: textColor,
                             fontWeight: FontWeight.w600,
@@ -419,17 +462,11 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
                                     padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
                                       color: isUser
-                                          ? primaryColor.withOpacity(
-                                              0.9,
-                                            )
-                                          : surfaceColor.withOpacity(
-                                              0.04,
-                                            ),
+                                          ? primaryColor.withOpacity(0.9)
+                                          : surfaceColor.withOpacity(0.04),
                                       borderRadius: BorderRadius.circular(8),
                                       border: Border.all(
-                                        color: textColor.withOpacity(
-                                          0.04,
-                                        ),
+                                        color: textColor.withOpacity(0.04),
                                       ),
                                     ),
                                     child: Text(
