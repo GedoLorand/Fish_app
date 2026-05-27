@@ -4,6 +4,8 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:login_fish_app/backend-login/wrapper.dart';
 //import 'firebase_options.dart';
 import 'package:get/get.dart';
+import 'i18n/translations.dart';
+import 'dart:ui' as ui;
 import 'homepage/Initial/initialType.dart';
 import 'controllers/theme_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,11 +26,24 @@ void main() async {
       functionsEmulatorPort,
     );
   }
-  runApp(const MyApp());
+  // Determine initial locale: saved preference -> device locale -> fallback en
+  final prefs = await SharedPreferences.getInstance();
+  final saved = prefs.getString('user_language');
+  String code;
+  if (saved != null && ['hu', 'ro', 'en'].contains(saved)) {
+    code = saved;
+  } else {
+    final dev = ui.PlatformDispatcher.instance.locale;
+    code = ['hu', 'ro', 'en'].contains(dev.languageCode)
+        ? dev.languageCode
+        : 'en';
+  }
+  runApp(MyApp(initialLocaleCode: code));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final String initialLocaleCode;
+  const MyApp({super.key, required this.initialLocaleCode});
 
   // This widget is the root of your application.
   @override
@@ -36,6 +51,9 @@ class MyApp extends StatelessWidget {
     // Put the theme controller into GetX
     Get.put(ThemeController());
     return GetMaterialApp(
+      translations: AppTranslations(),
+      locale: Locale(initialLocaleCode),
+      fallbackLocale: const Locale('en'),
       title: 'Flutter Demo',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.theme,

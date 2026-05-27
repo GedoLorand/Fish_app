@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:get/get.dart';
 import 'package:login_fish_app/homepage/Header/global_header.dart';
 import 'package:login_fish_app/homepage/Header/custom_drawer.dart';
 
@@ -51,11 +52,15 @@ class _SettingsState extends State<Settings> {
       await prefs.setString('user_avatar', _avatarBase64!);
     }
     await prefs.setString('user_language', _language);
+    // Apply locale immediately
+    try {
+      Get.updateLocale(Locale(_language));
+    } catch (_) {}
 
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('Beállítások elmentve')));
+    ).showSnackBar(SnackBar(content: Text('settings_saved'.tr)));
   }
 
   @override
@@ -75,9 +80,9 @@ class _SettingsState extends State<Settings> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Felhasználói beállítások',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            Text(
+              'user_settings'.tr,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 20),
 
@@ -89,7 +94,7 @@ class _SettingsState extends State<Settings> {
                   TextButton.icon(
                     onPressed: _pickImage,
                     icon: const Icon(Icons.photo_library),
-                    label: const Text('Kép feltöltése'),
+                    label: Text('upload_image'.tr),
                   ),
                 ],
               ),
@@ -97,26 +102,26 @@ class _SettingsState extends State<Settings> {
             const SizedBox(height: 20),
 
             // Name
-            const Text('Név', style: TextStyle(fontSize: 16)),
+            Text('name'.tr, style: const TextStyle(fontSize: 16)),
             const SizedBox(height: 8),
             TextField(
               controller: _nameController,
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
-                hintText: 'Írd be a neved',
+                hintText: 'enter_name',
               ),
             ),
             const SizedBox(height: 20),
 
             // Language
-            const Text('Nyelv', style: TextStyle(fontSize: 16)),
+            Text('language'.tr, style: const TextStyle(fontSize: 16)),
             const SizedBox(height: 8),
             DropdownButton<String>(
               value: _language,
               items: const [
-                DropdownMenuItem(value: 'hu', child: Text('Magyar')),
-                DropdownMenuItem(value: 'ro', child: Text('Román')),
-                DropdownMenuItem(value: 'en', child: Text('Angol')),
+                DropdownMenuItem(value: 'hu', child: Text('lang_hu')),
+                DropdownMenuItem(value: 'ro', child: Text('lang_ro')),
+                DropdownMenuItem(value: 'en', child: Text('lang_en')),
               ],
               onChanged: (v) {
                 if (v == null) return;
@@ -131,7 +136,7 @@ class _SettingsState extends State<Settings> {
             Center(
               child: ElevatedButton(
                 onPressed: _saveSettings,
-                child: const Text('Mentés'),
+                child: Text('save'.tr),
               ),
             ),
           ],
