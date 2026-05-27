@@ -8,6 +8,7 @@ import 'package:login_fish_app/services/filter_bus.dart';
 //import 'package:flutterfishapp/UserScreen/user.dart';
 import 'package:login_fish_app/homepage/SettingsScreen/settings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:get/get.dart';
 import 'package:login_fish_app/homepage/Admin/reports_admin.dart';
 import 'package:login_fish_app/homepage/LegalScreen/legal_links.dart';
 import 'package:login_fish_app/homepage/LegalScreen/legal_webview.dart';
@@ -53,7 +54,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
               children: [
                 _buildListTile(
                   icon: Icons.photo_library,
-                  text: 'Gallery',
+                  text: 'gallery',
                   onTap: () {
                     // Close drawer first so navigation happens from the underlying
                     // screen (usually MapScreen). Then await result from Gallery
@@ -74,7 +75,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
                 _buildListTile(
                   icon: Icons.filter_alt,
-                  text: 'Filters',
+                  text: 'filters',
                   onTap: () async {
                     // Close the drawer first so Filter opens on top of the full MapScreen
                     Navigator.pop(context);
@@ -92,7 +93,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
                 _buildListTile(
                   icon: Icons.smart_toy,
-                  text: 'AI Asszisztens',
+                  text: 'ai_assistant',
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
@@ -106,7 +107,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
                 _buildListTile(
                   icon: Icons.settings,
-                  text: 'Settings',
+                  text: 'settings',
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
@@ -118,14 +119,14 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
                 _buildListTile(
                   icon: Icons.privacy_tip,
-                  text: 'Privacy Policy',
+                  text: 'privacy_policy',
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const LegalWebViewScreen(
-                          title: 'Privacy Policy',
+                        builder: (context) => LegalWebViewScreen(
+                          title: 'privacy_policy'.tr,
                           url: LegalLinks.privacyPolicyUrl,
                         ),
                       ),
@@ -135,14 +136,14 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
                 _buildListTile(
                   icon: Icons.description,
-                  text: 'Terms and Conditions',
+                  text: 'terms_conditions',
                   onTap: () {
                     Navigator.pop(context);
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const LegalWebViewScreen(
-                          title: 'Terms and Conditions',
+                        builder: (context) => LegalWebViewScreen(
+                          title: 'terms_conditions'.tr,
                           url: LegalLinks.termsAndConditionsUrl,
                         ),
                       ),
@@ -156,7 +157,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         _user!.isAnonymous == false && false))
                   _buildListTile(
                     icon: Icons.report,
-                    text: 'Reports',
+                    text: 'reports',
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
@@ -170,7 +171,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                 Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
                 _buildListTile(
                   icon: Icons.logout,
-                  text: 'Logout',
+                  text: 'logout',
                   onTap: () {
                     Navigator.push(
                       context,
@@ -194,7 +195,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
     return ListTile(
       leading: Icon(icon, color: AppTheme.textColor, size: 22),
       title: Text(
-        text,
+        text.tr,
         style: TextStyle(
           color: AppTheme.textColor,
           fontFamily: AppTheme.fontFamily,

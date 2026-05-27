@@ -106,9 +106,9 @@ class _SettingsState extends State<Settings> {
             const SizedBox(height: 8),
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'enter_name',
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                hintText: 'enter_name'.tr,
               ),
             ),
             const SizedBox(height: 20),
@@ -118,10 +118,10 @@ class _SettingsState extends State<Settings> {
             const SizedBox(height: 8),
             DropdownButton<String>(
               value: _language,
-              items: const [
-                DropdownMenuItem(value: 'hu', child: Text('lang_hu')),
-                DropdownMenuItem(value: 'ro', child: Text('lang_ro')),
-                DropdownMenuItem(value: 'en', child: Text('lang_en')),
+              items: [
+                DropdownMenuItem(value: 'hu', child: Text('lang_hu'.tr)),
+                DropdownMenuItem(value: 'ro', child: Text('lang_ro'.tr)),
+                DropdownMenuItem(value: 'en', child: Text('lang_en'.tr)),
               ],
               onChanged: (v) {
                 if (v == null) return;

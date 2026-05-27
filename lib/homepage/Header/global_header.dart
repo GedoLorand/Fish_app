@@ -169,7 +169,7 @@ class GlobalHeader extends StatelessWidget implements PreferredSizeWidget {
           Get.offAll(() => Homepage());
         },
         child: _OutlinedText(
-          'MAP',
+          'map_title'.tr,
           style: TextStyle(
             color: AppTheme.textColor,
             fontFamily: AppTheme.fontFamily,
@@ -191,8 +191,8 @@ class GlobalHeader extends StatelessWidget implements PreferredSizeWidget {
               outerOutline: headerInnerOrange,
             ),
             tooltip: themeController.isDark.value
-                ? 'Éjszakai mód'
-                : 'Nappali mód',
+                ? 'theme_dark'.tr
+                : 'theme_light'.tr,
             onPressed: () => themeController.toggle(),
           ),
         ),
