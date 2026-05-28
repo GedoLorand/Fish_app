@@ -277,12 +277,15 @@ class _FilterState extends State<Filter> {
                             if (widget.restrictToCurrentUser) {
                               filter['ownerOnly'] = true;
                             }
-                            Future.microtask(
-                              () => FilterBus.instance.publish(
-                                filter.isEmpty ? null : filter,
-                              ),
+                            // publish synchronously so listeners update immediately
+                            FilterBus.instance.publish(
+                              filter.isEmpty ? null : filter,
                             );
-                            Navigator.of(context).pop({'appliedFilter': true});
+                            // pop back to the app root so the existing MapScreen (inside Wrapper/Homepage)
+                            // becomes visible and reacts to the published filter
+                            Navigator.of(
+                              context,
+                            ).popUntil((route) => route.isFirst);
                           },
                           child: const Center(
                             child: Text(
@@ -299,9 +302,7 @@ class _FilterState extends State<Filter> {
                         child: AppButton(
                           backgroundColor: Colors.red.shade600,
                           onPressed: () {
-                            Future.microtask(
-                              () => FilterBus.instance.publish(null),
-                            );
+                            FilterBus.instance.publish(null);
                             setState(() {
                               selectedFishType = null;
                               _weightRange = const RangeValues(0, 10);
