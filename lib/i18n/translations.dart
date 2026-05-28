@@ -94,6 +94,9 @@ class AppTranslations extends Translations {
       'no_data': 'No data',
       'first_upload': 'First upload',
       'last_upload': 'Last upload',
+      'results': 'Results',
+      'images_nearby': 'Images nearby',
+      'weight_label': 'Weight',
       // Filter screen
       'fish_type': 'Fish species',
       'enter_or_choose': 'Type or choose',
@@ -225,6 +228,9 @@ class AppTranslations extends Translations {
       'no_data': 'Nincs adat',
       'first_upload': 'Első feltöltés',
       'last_upload': 'Utolsó feltöltés',
+      'results': 'Találatok',
+      'images_nearby': 'Képek a környéken',
+      'weight_label': 'Tömeg',
       // Filter screen
       'fish_type': 'Hal fajtája',
       'enter_or_choose': 'Írd be vagy válassz',
@@ -358,6 +364,9 @@ class AppTranslations extends Translations {
       'no_data': 'Fără date',
       'first_upload': 'Prima încărcare',
       'last_upload': 'Ultima încărcare',
+      'results': 'Rezultate',
+      'images_nearby': 'Imagini în zonă',
+      'weight_label': 'Greutate',
       // Filter screen
       'fish_type': 'Specia de pește',
       'enter_or_choose': 'Scrie sau alege',

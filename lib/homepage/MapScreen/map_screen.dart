@@ -1312,7 +1312,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                               MainAxisAlignment.spaceBetween,
                                           children: [
                                             Text(
-                                              'Képek a környéken',
+                                              'images_nearby'.tr,
                                               style: TextStyle(
                                                 color: AppTheme.textColor,
                                                 fontWeight: FontWeight.bold,
@@ -1464,7 +1464,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                                           if (doc['species'] !=
                                                               null)
                                                             Text(
-                                                              'Fajta: ${doc['species']}',
+                                                              '${'species_label'.tr}: ${doc['species']}',
                                                               style: TextStyle(
                                                                 color: AppTheme
                                                                     .textColor,
@@ -1481,7 +1481,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                                                     top: 6.0,
                                                                   ),
                                                               child: Text(
-                                                                'Tömeg: ${doc['weight']} kg',
+                                                                '${'weight_label'.tr}: ${doc['weight']} kg',
                                                                 style: TextStyle(
                                                                   color: AppTheme
                                                                       .textColor,
@@ -1625,7 +1625,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                         MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
-                                        'Képek a környéken',
+                                        'images_nearby'.tr,
                                         style: TextStyle(
                                           color: AppTheme.textColor,
                                           fontWeight: FontWeight.bold,
@@ -1796,7 +1796,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                                   children: [
                                                     if (doc['species'] != null)
                                                       Text(
-                                                        'Fajta: ${doc['species']}',
+                                                        '${'species_label'.tr}: ${doc['species']}',
                                                         style: TextStyle(
                                                           color: AppTheme
                                                               .textColor,
@@ -1811,7 +1811,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                                               top: 6.0,
                                                             ),
                                                         child: Text(
-                                                          'Tömeg: ${_formatWeight(doc['weight'])} kg',
+                                                          '${'weight_label'.tr}: ${_formatWeight(doc['weight'])} kg',
                                                           style: TextStyle(
                                                             color: AppTheme
                                                                 .textColor,
