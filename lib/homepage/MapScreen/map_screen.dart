@@ -1337,8 +1337,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                                       icon: const Icon(
                                                         Icons.bar_chart,
                                                       ),
-                                                      label: const Text(
-                                                        'Statisztikák',
+                                                      label: Text(
+                                                        'statistics'.tr,
                                                       ),
                                                       onPressed: () {
                                                         Navigator.of(
@@ -1649,9 +1649,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                                 icon: const Icon(
                                                   Icons.bar_chart,
                                                 ),
-                                                label: const Text(
-                                                  'Statisztikák',
-                                                ),
+                                                label: Text('statistics'.tr),
                                                 onPressed: () {
                                                   Navigator.of(context).push(
                                                     MaterialPageRoute(

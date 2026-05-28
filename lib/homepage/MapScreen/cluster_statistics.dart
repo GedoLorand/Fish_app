@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -82,18 +83,18 @@ class ClusterStatisticsScreen extends StatelessWidget {
       length: 4,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Klaszter Statisztikák'),
+          title: Text('cluster_statistics'.tr),
           backgroundColor: AppTheme.primaryColor,
           bottom: TabBar(
             isScrollable: true,
             labelColor: Colors.black,
             unselectedLabelColor: Colors.black54,
             indicatorColor: AppTheme.primaryColor,
-            tabs: const [
-              Tab(text: 'Fajta'),
-              Tab(text: 'Idő vs Tömeg'),
-              Tab(text: 'Eloszlás'),
-              Tab(text: 'Koordináták'),
+            tabs: [
+              Tab(text: 'species_tab'.tr),
+              Tab(text: 'time_weight_tab'.tr),
+              Tab(text: 'distribution_tab'.tr),
+              Tab(text: 'coordinates_tab'.tr),
             ],
           ),
         ),
@@ -106,16 +107,16 @@ class ClusterStatisticsScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Összes találat: ${entries.length}',
+                    '${'total_results'.tr}: ${entries.length}',
                     style: const TextStyle(fontSize: 16, color: Colors.white),
                   ),
                   const SizedBox(height: 12),
                   Expanded(
                     child: speciesCount.isEmpty
-                        ? const Center(
+                        ? Center(
                             child: Text(
-                              'Nincs adat',
-                              style: TextStyle(color: Colors.white),
+                              'no_data'.tr,
+                              style: const TextStyle(color: Colors.white),
                             ),
                           )
                         : Column(
@@ -183,21 +184,21 @@ class ClusterStatisticsScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: timeWeight.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text(
-                        'Nincs idő/tömeg adat',
-                        style: TextStyle(color: Colors.white),
+                        'no_data'.tr,
+                        style: const TextStyle(color: Colors.white),
                       ),
                     )
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Első feltöltés: ${firstUpload != null ? firstUpload.toLocal().toString().split('.').first : '-'}',
+                          '${'first_upload'.tr}: ${firstUpload != null ? firstUpload.toLocal().toString().split('.').first : '-'}',
                           style: const TextStyle(color: Colors.white),
                         ),
                         Text(
-                          'Utolsó feltöltés: ${lastUpload != null ? lastUpload.toLocal().toString().split('.').first : '-'}',
+                          '${'last_upload'.tr}: ${lastUpload != null ? lastUpload.toLocal().toString().split('.').first : '-'}',
                           style: const TextStyle(color: Colors.white),
                         ),
                         const SizedBox(height: 8),
@@ -216,10 +217,10 @@ class ClusterStatisticsScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: weightSpecies.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text(
-                        'Nincs tömeg adat',
-                        style: TextStyle(color: Colors.black),
+                        'no_data'.tr,
+                        style: const TextStyle(color: Colors.black),
                       ),
                     )
                   : SizedBox(
@@ -235,10 +236,10 @@ class ClusterStatisticsScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(12.0),
               child: coordPoints.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text(
-                        'Nincs koordináta adat',
-                        style: TextStyle(color: Colors.black),
+                        'no_data'.tr,
+                        style: const TextStyle(color: Colors.black),
                       ),
                     )
                   : SingleChildScrollView(
