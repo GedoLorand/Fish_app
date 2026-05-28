@@ -16,6 +16,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_marker_cluster/flutter_map_marker_cluster.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:get/get.dart';
 import 'package:login_fish_app/homepage/MapScreen/metadata_dialog.dart';
 import 'package:login_fish_app/homepage/MapScreen/cluster_sheet.dart';
 import 'package:login_fish_app/homepage/MapScreen/cluster_statistics.dart';
@@ -277,18 +278,20 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       if (wmin != null || wmax != null) {
         final a = wmin?.toString() ?? '-';
         final b = wmax?.toString() ?? '-';
-        parts.add('Súly: $a—$b kg');
+        parts.add('${'weight_kg'.tr}: $a—$b');
       }
       final month = _currentFilter!['month'];
       final year = _currentFilter!['year'];
       if (month != null || year != null)
-        parts.add('Idő: ${month ?? '-'} / ${year ?? '-'}');
+        parts.add('${'time_interval'.tr}: ${month ?? '-'} / ${year ?? '-'}');
       final st = _currentFilter!['startTime'];
       final et = _currentFilter!['endTime'];
       if (st != null || et != null)
-        parts.add('Óra: ${_formatTimeMap(st)}—${_formatTimeMap(et)}');
+        parts.add(
+          '${'start_time'.tr}: ${_formatTimeMap(st)} — ${'end_time'.tr}: ${_formatTimeMap(et)}',
+        );
       final date = _currentFilter!['date'] as String?;
-      if (date != null) parts.add('Dátum');
+      if (date != null) parts.add('${'date'.tr}: $date');
     } catch (_) {}
     return parts.join(' · ');
   }
@@ -304,18 +307,20 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       if (wmin != null || wmax != null) {
         final a = wmin?.toString() ?? '-';
         final b = wmax?.toString() ?? '-';
-        parts.add('Súly: $a—$b kg');
+        parts.add('${'weight_kg'.tr}: $a—$b');
       }
       final month = _currentFilter!['month'];
       final year = _currentFilter!['year'];
       if (month != null || year != null)
-        parts.add('Idő: ${month ?? '-'} / ${year ?? '-'}');
+        parts.add('${'time_interval'.tr}: ${month ?? '-'} / ${year ?? '-'}');
       final st = _currentFilter!['startTime'];
       final et = _currentFilter!['endTime'];
       if (st != null || et != null)
-        parts.add('Óra: ${_formatTimeMap(st)}—${_formatTimeMap(et)}');
+        parts.add(
+          '${'start_time'.tr}: ${_formatTimeMap(st)} — ${'end_time'.tr}: ${_formatTimeMap(et)}',
+        );
       final date = _currentFilter!['date'] as String?;
-      if (date != null) parts.add('Dátum: $date');
+      if (date != null) parts.add('${'date'.tr}: $date');
     } catch (_) {}
     return parts;
   }
@@ -334,6 +339,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             .where('public', isEqualTo: true)
             .get();
         for (final doc in top.docs) {
+          if (seen.contains(doc.id)) continue;
           final data = doc.data() as Map<String, dynamic>;
           GeoPoint? gp = data['location'] as GeoPoint?;
           LatLng? pt;
@@ -343,7 +349,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           seen.add(doc.id);
         }
       } catch (e) {
-        // ignore top-level read errors, try per-user next
         print('fallback: top-level /images read failed: $e');
       }
 
@@ -2157,7 +2162,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                           border: Border.all(color: Colors.black, width: 2),
                         ),
                         child: Text(
-                          'Filter kikapcsolása',
+                          'clear_filter'.tr,
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
