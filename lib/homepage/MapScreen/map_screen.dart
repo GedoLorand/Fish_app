@@ -64,6 +64,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   bool _showPanelPulse = false;
   bool _showArrowHint = false;
   bool _suppressNextClearHint = false;
+  late final AnimationController _badgePulseController;
+  late final Animation<double> _badgePulseAnimation;
   File? _imageFile;
   bool _uploading = false;
   Timer? _locationTimer;
@@ -77,6 +79,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   QuerySnapshot? _lastTopSnap;
   QuerySnapshot? _lastUserSnap;
   StreamSubscription<DocumentSnapshot>? _imagesPingSub;
+  StreamSubscription<DocumentSnapshot>? _userDocSub;
+  int _unreadMessagesCount = 0;
 
   @override
   void initState() {
@@ -101,6 +105,14 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     try {
       _eventPulseController.repeat(reverse: true);
     } catch (_) {}
+    // badge pulse for incoming messages
+    _badgePulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _badgePulseAnimation = Tween<double>(begin: 1.0, end: 1.12).animate(
+      CurvedAnimation(parent: _badgePulseController, curve: Curves.easeInOut),
+    );
     // sparkles
     _eventSparkleController = AnimationController(
       vsync: this,
@@ -115,6 +127,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     // and merge results client-side. This avoids relying on collectionGroup
     // queries which may be blocked by security rules.
     _subscribeToImageStreams();
+    _subscribeToUserDoc();
 
     // Listen to a lightweight "ping" document so other clients can be
     // notified quickly when a new image is published. This avoids aggressive
@@ -215,6 +228,49 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     } catch (_) {}
   }
 
+  void _subscribeToUserDoc() {
+    try {
+      _userDocSub?.cancel();
+    } catch (_) {}
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    try {
+      _userDocSub = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .snapshots()
+          .listen((snap) {
+            try {
+              final data = snap.data();
+              final val = (data != null && data['unreadMessages'] != null)
+                  ? data['unreadMessages']
+                  : 0;
+              final n = (val is int)
+                  ? val
+                  : (val is num
+                        ? val.toInt()
+                        : int.tryParse(val?.toString() ?? '0') ?? 0);
+              final old = _unreadMessagesCount;
+              if (n > old && n > 0) {
+                try {
+                  _badgePulseController.repeat(reverse: true);
+                  Future.delayed(const Duration(seconds: 2), () {
+                    try {
+                      _badgePulseController.stop();
+                      _badgePulseController.reset();
+                    } catch (_) {}
+                  });
+                } catch (_) {}
+              }
+              if (!mounted) return;
+              setState(() => _unreadMessagesCount = n);
+            } catch (_) {}
+          });
+    } catch (e) {
+      // ignore
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -237,6 +293,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       _imagesPingSub?.cancel();
     } catch (_) {}
     try {
+      _userDocSub?.cancel();
+    } catch (_) {}
+    try {
       _locationTimer?.cancel();
     } catch (_) {}
     try {
@@ -250,6 +309,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     } catch (_) {}
     try {
       _eventSparkleController.dispose();
+    } catch (_) {}
+    try {
+      _badgePulseController.dispose();
     } catch (_) {}
     super.dispose();
   }
@@ -2112,10 +2174,52 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   side: BorderSide(color: Colors.black, width: 2),
                 ),
                 onPressed: _openMyMessagesLog,
-                child: _outlinedIcon(
-                  Icons.mark_chat_unread,
-                  size: 18,
-                  color: AppTheme.textColor,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Center(
+                      child: _outlinedIcon(
+                        Icons.mark_chat_unread,
+                        size: 18,
+                        color: AppTheme.textColor,
+                      ),
+                    ),
+                    if (_unreadMessagesCount > 0)
+                      Positioned(
+                        right: -6,
+                        top: -6,
+                        child: ScaleTransition(
+                          scale: _badgePulseAnimation,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 18,
+                              minHeight: 18,
+                            ),
+                            child: Center(
+                              child: Text(
+                                _unreadMessagesCount > 99
+                                    ? '99+'
+                                    : _unreadMessagesCount.toString(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -2392,6 +2496,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       return;
     }
     try {
+      // Clear unread counter for the owner when opening the message log
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'unreadMessages': 0,
+        }, SetOptions(merge: true));
+      } catch (_) {}
       // Query messages where current user is a participant (array-contains)
       final snap = await FirebaseFirestore.instance
           .collectionGroup('messages')

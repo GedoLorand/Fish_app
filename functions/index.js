@@ -336,3 +336,191 @@ if (functions && functions.firestore && typeof functions.firestore.document === 
     console.warn('Firestore triggers not available in this firebase-functions version; skipping mirrorUserImage registration.', e && e.message || e);
   }
 }
+
+// Firestore trigger: when a message is created under supported /messages subcollections,
+// notify the image owner by incrementing their unreadMessages counter and writing
+// a notification document under users/{ownerId}/notifications/{autoId}.
+function _handleMessageCreated(snap, context) {
+  return (async () => {
+    try {
+      const msg = snap.data() || {};
+      const senderUid = msg.senderUid || null;
+      // Determine parent image document (parent of this messages collection)
+      const parent = snap.ref.parent.parent; // DocumentReference
+      if (!parent) {
+        console.log('onMessageCreated: no parent doc for message', context && context.params && context.params.messageId);
+        return null;
+      }
+      const imageSnap = await parent.get();
+      if (!imageSnap.exists) {
+        console.log('onMessageCreated: parent image doc not found', parent.path);
+        return null;
+      }
+      const imageData = imageSnap.data() || {};
+      const ownerId = imageData.ownerId || imageData.owner || null;
+      if (!ownerId) {
+        console.log('onMessageCreated: no ownerId on image', parent.path);
+        return null;
+      }
+      if (senderUid && senderUid === ownerId) {
+        // Owner commented on own image; don't increment
+        console.log('onMessageCreated: sender is owner, skipping increment', ownerId);
+        return null;
+      }
+
+      const db = admin.firestore();
+      const userRef = db.collection('users').doc(ownerId);
+      // Increment unreadMessages atomically
+      await userRef.set({ unreadMessages: admin.firestore.FieldValue.increment(1) }, { merge: true });
+
+      // Create a notification document for richer UI/history
+      const notif = {
+        type: 'message',
+        imagePath: parent.path,
+        imageId: parent.id || null,
+        messageId: context && context.params && context.params.messageId,
+        fromUid: senderUid || null,
+        excerpt: (typeof msg.text === 'string' ? (msg.text.length > 300 ? msg.text.substring(0, 300) + '...' : msg.text) : null),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+      };
+      await userRef.collection('notifications').add(notif);
+      console.log('onMessageCreated: notified owner', ownerId, 'for image', parent.path);
+    } catch (e) {
+      console.warn('onMessageCreated: handler failed', e && e.message || e);
+    }
+    return null;
+  })();
+}
+
+// Register explicit, supported Firestore triggers so the CLI discovers them reliably.
+if (functions && functions.firestore && typeof functions.firestore.document === 'function') {
+  // Top-level images collection messages
+  exports.onMessageCreated_images = functions.firestore
+    .document('images/{imageId}/messages/{messageId}')
+    .onCreate((snap, context) => _handleMessageCreated(snap, context));
+
+  // Per-user images (mirror may also create these) messages
+  exports.onMessageCreated_userImages = functions.firestore
+    .document('users/{userId}/images/{imageId}/messages/{messageId}')
+    .onCreate((snap, context) => _handleMessageCreated(snap, context));
+} else {
+  console.warn('Firestore triggers not available; skipping onMessageCreated registration');
+}
+
+// Fallback: register v2 style triggers so the CLI can discover them during deploy
+try {
+  const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+  function parseProtoFields(fields) {
+    const obj = {};
+    for (const k in fields) {
+      const v = fields[k];
+      if (!v) { obj[k] = null; continue; }
+      if (v.stringValue !== undefined) obj[k] = v.stringValue;
+      else if (v.integerValue !== undefined) obj[k] = Number(v.integerValue);
+      else if (v.doubleValue !== undefined) obj[k] = Number(v.doubleValue);
+      else if (v.booleanValue !== undefined) obj[k] = v.booleanValue;
+      else if (v.mapValue && v.mapValue.fields) obj[k] = parseProtoFields(v.mapValue.fields);
+      else if (v.arrayValue && Array.isArray(v.arrayValue.values)) {
+        obj[k] = v.arrayValue.values.map(item => {
+          if (item.stringValue !== undefined) return item.stringValue;
+          if (item.integerValue !== undefined) return Number(item.integerValue);
+          if (item.doubleValue !== undefined) return Number(item.doubleValue);
+          if (item.booleanValue !== undefined) return item.booleanValue;
+          if (item.mapValue && item.mapValue.fields) return parseProtoFields(item.mapValue.fields);
+          return null;
+        });
+      } else obj[k] = null;
+    }
+    return obj;
+  }
+
+  function extractDataFromV2(snapshot) {
+    if (!snapshot) return null;
+    if (typeof snapshot.data === 'function') return snapshot.data();
+    if (snapshot.fields) return parseProtoFields(snapshot.fields);
+    return snapshot;
+  }
+
+  // images/{imageId}/messages/{messageId}
+  exports.onMessageCreated_images_v2 = onDocumentCreated('images/{imageId}/messages/{messageId}', async (event) => {
+    try {
+      const after = event.data && event.data; // proto-like
+      const msg = extractDataFromV2(after) || {};
+      const senderUid = msg.senderUid || null;
+      const imageId = event.params && event.params.imageId;
+      if (!imageId) return null;
+      const parentPath = `images/${imageId}`;
+      const parentRef = admin.firestore().doc(parentPath);
+      const imageSnap = await parentRef.get();
+      if (!imageSnap.exists) {
+        console.log('onMessageCreated_images_v2: parent image not found', parentPath);
+        return null;
+      }
+      const imageData = imageSnap.data() || {};
+      const ownerId = imageData.ownerId || imageData.owner || null;
+      if (!ownerId) return null;
+      if (senderUid && senderUid === ownerId) return null;
+      const userRef = admin.firestore().collection('users').doc(ownerId);
+      await userRef.set({ unreadMessages: admin.firestore.FieldValue.increment(1) }, { merge: true });
+      const notif = {
+        type: 'message',
+        imagePath: parentPath,
+        imageId: imageId,
+        messageId: event.params && event.params.messageId,
+        fromUid: senderUid || null,
+        excerpt: (typeof msg.text === 'string' ? (msg.text.length > 300 ? msg.text.substring(0, 300) + '...' : msg.text) : null),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+      };
+      await userRef.collection('notifications').add(notif);
+      console.log('onMessageCreated_images_v2: notified owner', ownerId, 'for image', parentPath);
+    } catch (e) {
+      console.warn('onMessageCreated_images_v2 failed', e && e.message || e);
+    }
+    return null;
+  });
+
+  // users/{userId}/images/{imageId}/messages/{messageId}
+  exports.onMessageCreated_userImages_v2 = onDocumentCreated('users/{userId}/images/{imageId}/messages/{messageId}', async (event) => {
+    try {
+      const after = event.data && event.data;
+      const msg = extractDataFromV2(after) || {};
+      const senderUid = msg.senderUid || null;
+      const userId = event.params && event.params.userId;
+      const imageId = event.params && event.params.imageId;
+      if (!userId || !imageId) return null;
+      const parentPath = `users/${userId}/images/${imageId}`;
+      const parentRef = admin.firestore().doc(parentPath);
+      const imageSnap = await parentRef.get();
+      if (!imageSnap.exists) {
+        console.log('onMessageCreated_userImages_v2: parent image not found', parentPath);
+        return null;
+      }
+      const imageData = imageSnap.data() || {};
+      const ownerId = imageData.ownerId || imageData.owner || userId || null;
+      if (!ownerId) return null;
+      if (senderUid && senderUid === ownerId) return null;
+      const userRef = admin.firestore().collection('users').doc(ownerId);
+      await userRef.set({ unreadMessages: admin.firestore.FieldValue.increment(1) }, { merge: true });
+      const notif = {
+        type: 'message',
+        imagePath: parentPath,
+        imageId: imageId,
+        messageId: event.params && event.params.messageId,
+        fromUid: senderUid || null,
+        excerpt: (typeof msg.text === 'string' ? (msg.text.length > 300 ? msg.text.substring(0, 300) + '...' : msg.text) : null),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+      };
+      await userRef.collection('notifications').add(notif);
+      console.log('onMessageCreated_userImages_v2: notified owner', ownerId, 'for image', parentPath);
+    } catch (e) {
+      console.warn('onMessageCreated_userImages_v2 failed', e && e.message || e);
+    }
+    return null;
+  });
+} catch (e) {
+  // If v2 API not available, it's fine — deploy will proceed with whatever triggers are registered
+  console.warn('v2 Firestore trigger registration skipped:', e && e.message || e);
+}
