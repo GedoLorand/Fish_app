@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:get/get.dart';
 import 'package:login_fish_app/homepage/Header/global_header.dart';
 import 'package:login_fish_app/homepage/Header/custom_drawer.dart';
@@ -27,9 +30,35 @@ class _SettingsState extends State<Settings> {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    // Only use the per-user cached avatar when signed in. Avoid a generic
+    // fallback because it can cause one user's avatar to appear for others.
+    String? localAvatar = uid != null
+        ? prefs.getString('user_avatar_$uid')
+        : null;
+    String? firestoreAvatar;
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        final doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .get();
+        if (doc.exists) {
+          final data = doc.data();
+          if (data != null && data['avatar'] != null) {
+            firestoreAvatar = data['avatar'] as String?;
+          }
+        }
+      }
+    } catch (_) {}
     setState(() {
-      _nameController.text = prefs.getString('user_name') ?? '';
-      _avatarBase64 = prefs.getString('user_avatar');
+      _nameController.text = uid != null
+          ? prefs.getString('user_name_$uid') ??
+                prefs.getString('user_name') ??
+                ''
+          : prefs.getString('user_name') ?? '';
+      _avatarBase64 = firestoreAvatar ?? localAvatar;
       _language = prefs.getString('user_language') ?? 'hu';
     });
   }
@@ -41,17 +70,62 @@ class _SettingsState extends State<Settings> {
     final bytes = await file.readAsBytes();
     final encoded = base64Encode(bytes);
     setState(() {
+      // keep local base64 to preview until saved (will be uploaded on save)
       _avatarBase64 = encoded;
     });
   }
 
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_name', _nameController.text);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid != null) {
+      await prefs.setString('user_name_$uid', _nameController.text);
+    } else {
+      await prefs.setString('user_name', _nameController.text);
+    }
     if (_avatarBase64 != null) {
-      await prefs.setString('user_avatar', _avatarBase64!);
+      // If _avatarBase64 looks like a URL we already saved it; otherwise upload
+      if (_avatarBase64!.startsWith('http')) {
+        if (uid != null) {
+          await prefs.setString('user_avatar_$uid', _avatarBase64!);
+        } else {
+          await prefs.setString('user_avatar', _avatarBase64!);
+        }
+      } else {
+        // Upload to Firebase Storage and save URL to prefs and Firestore
+        try {
+          if (uid != null) {
+            final bytes = base64Decode(_avatarBase64!);
+            final ref = FirebaseStorage.instance.ref().child(
+              'avatars/$uid.jpg',
+            );
+            await ref.putData(
+              bytes,
+              SettableMetadata(contentType: 'image/jpeg'),
+            );
+            final url = await ref.getDownloadURL();
+            if (uid != null) await prefs.setString('user_avatar_$uid', url);
+            _avatarBase64 = url;
+            // Save URL to Firestore users/{uid}.avatar
+            final docRef = FirebaseFirestore.instance
+                .collection('users')
+                .doc(uid);
+            await docRef.set({'avatar': url}, SetOptions(merge: true));
+          } else {
+            // no uid; fallback to local storage
+            await prefs.setString('user_avatar', _avatarBase64!);
+          }
+        } catch (_) {
+          if (uid != null) {
+            await prefs.setString('user_avatar_$uid', _avatarBase64!);
+          } else {
+            await prefs.setString('user_avatar', _avatarBase64!);
+          }
+        }
+      }
     }
     await prefs.setString('user_language', _language);
+    // (avatar saved above) ensure locale applied
     // Apply locale immediately
     try {
       Get.updateLocale(Locale(_language));
@@ -68,7 +142,9 @@ class _SettingsState extends State<Settings> {
     final avatarWidget = _avatarBase64 != null
         ? CircleAvatar(
             radius: 48,
-            backgroundImage: MemoryImage(base64Decode(_avatarBase64!)),
+            backgroundImage: _avatarBase64!.startsWith('http')
+                ? NetworkImage(_avatarBase64!) as ImageProvider
+                : MemoryImage(base64Decode(_avatarBase64!)),
           )
         : const CircleAvatar(radius: 48, child: Icon(Icons.person, size: 48));
 

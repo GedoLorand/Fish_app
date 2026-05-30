@@ -30,8 +30,36 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
 
   Future<void> _loadAvatar() async {
     try {
+      // Try to fetch avatar of the uploader (ownerId) from Firestore
+      final ownerId = widget.doc != null && widget.doc!.containsKey('ownerId')
+          ? (widget.doc!['ownerId'] as String?)
+          : null;
+      if (ownerId != null && ownerId.trim().isNotEmpty) {
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(ownerId)
+              .get();
+          if (userDoc.exists) {
+            final data = userDoc.data();
+            if (data != null && data['avatar'] != null) {
+              final avatar = data['avatar'] as String?;
+              if (!mounted) return;
+              setState(() => _avatarBase64 = avatar);
+              return;
+            }
+          }
+        } catch (_) {}
+      }
+      // Fallback: use local user avatar from shared preferences
       final prefs = await SharedPreferences.getInstance();
-      final a = prefs.getString('user_avatar');
+      // try to load a cached per-owner avatar in prefs before falling back to generic
+      String? a;
+      if (ownerId != null && ownerId.trim().isNotEmpty) {
+        a = prefs.getString('user_avatar_$ownerId');
+      } else {
+        a = null;
+      }
       if (!mounted) return;
       setState(() => _avatarBase64 = a);
     } catch (_) {}
@@ -198,9 +226,12 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                                     radius: 18,
                                     backgroundColor: Colors.grey.shade800,
                                     backgroundImage: _avatarBase64 != null
-                                        ? MemoryImage(
-                                            base64Decode(_avatarBase64!),
-                                          )
+                                        ? (_avatarBase64!.startsWith('http')
+                                              ? NetworkImage(_avatarBase64!)
+                                                    as ImageProvider
+                                              : MemoryImage(
+                                                  base64Decode(_avatarBase64!),
+                                                ))
                                         : null,
                                     child: _avatarBase64 == null
                                         ? const Icon(Icons.person)
