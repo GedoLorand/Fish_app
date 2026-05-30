@@ -437,27 +437,48 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   void _mergeImageSnapshots() {
     try {
       final List<Map<String, dynamic>> entries = [];
-      final seen = <String>{};
+      final seen =
+          <String>{}; // dedupe key: prefer docId field, fallback to doc id/path
       if (_lastTopSnap != null) {
         for (final doc in _lastTopSnap!.docs) {
           final data = doc.data() as Map<String, dynamic>;
+          final String? docIdField = data['docId'] as String?;
+          final key = docIdField ?? doc.id;
+          if (seen.contains(key)) continue;
+          seen.add(key);
           GeoPoint? gp = data['location'] as GeoPoint?;
           LatLng? pt;
           if (gp != null) pt = LatLng(gp.latitude, gp.longitude);
           final url = data['url'] as String? ?? '';
-          entries.add({'point': pt, 'url': url, 'doc': data, 'id': doc.id});
-          seen.add(doc.id);
+          entries.add({
+            'point': pt,
+            'url': url,
+            'doc': data,
+            'id': doc.id,
+            'path': doc.reference.path,
+            'docId': docIdField ?? doc.id,
+          });
         }
       }
       if (_lastUserSnap != null) {
         for (final doc in _lastUserSnap!.docs) {
-          if (seen.contains(doc.id)) continue;
           final data = doc.data() as Map<String, dynamic>;
+          final String? docIdField = data['docId'] as String?;
+          final key = docIdField ?? doc.id;
+          if (seen.contains(key)) continue;
+          seen.add(key);
           GeoPoint? gp = data['location'] as GeoPoint?;
           LatLng? pt;
           if (gp != null) pt = LatLng(gp.latitude, gp.longitude);
           final url = data['url'] as String? ?? '';
-          entries.add({'point': pt, 'url': url, 'doc': data, 'id': doc.id});
+          entries.add({
+            'point': pt,
+            'url': url,
+            'doc': data,
+            'id': doc.id,
+            'path': doc.reference.path,
+            'docId': docIdField ?? doc.id,
+          });
         }
       }
       if (!mounted) return;
@@ -691,13 +712,25 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           .collectionGroup('images')
           .get(GetOptions(source: Source.server));
       final List<Map<String, dynamic>> entries = [];
+      final seen = <String>{}; // dedupe key: prefer docId, fallback to doc path
       for (final doc in snap.docs) {
         final data = doc.data() as Map<String, dynamic>;
+        final String? docIdField = data['docId'] as String?;
+        final key = docIdField ?? doc.reference.path;
+        if (seen.contains(key)) continue;
+        seen.add(key);
         GeoPoint? gp = data['location'] as GeoPoint?;
         LatLng? pt;
         if (gp != null) pt = LatLng(gp.latitude, gp.longitude);
         final url = data['url'] as String? ?? '';
-        entries.add({'point': pt, 'url': url, 'doc': data, 'id': doc.id});
+        entries.add({
+          'point': pt,
+          'url': url,
+          'doc': data,
+          'id': doc.id,
+          'path': doc.reference.path,
+          'docId': docIdField ?? doc.id,
+        });
       }
       if (!mounted) return;
       setState(() => _photoEntries = entries);
@@ -939,6 +972,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           ? LatLng(photoPoint.latitude, photoPoint.longitude)
           : null;
       final localDoc = Map<String, dynamic>.from(docData);
+      // Ensure docId is present locally for reliable dedupe
+      localDoc['docId'] = docRef.id;
       // Replace server timestamp with current local time for immediate UI
       localDoc['createdAt'] = DateTime.now();
       final newEntry = {
@@ -946,6 +981,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         'url': url,
         'doc': localDoc,
         'id': docRef.id,
+        'path': docRef.path,
+        'docId': docRef.id,
       };
       setState(() {
         _photoEntries = List<Map<String, dynamic>>.from(_photoEntries)
@@ -1115,93 +1152,90 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   padding: const EdgeInsets.all(50),
                   // build markers from entries that have a valid geo-point
                   markers: [
-                    ..._photoEntries
-                        .where((e) {
+                    ...(() {
+                      final Map<String, Map<String, dynamic>> uniq = {};
+                      for (final e in _photoEntries) {
+                        try {
                           final LatLng? p = e['point'] as LatLng?;
-                          if (p == null) return false;
+                          if (p == null) continue;
                           if (_filterOnlyMine) {
-                            try {
-                              final doc = e['doc'] as Map<String, dynamic>?;
-                              return doc != null &&
-                                  doc['ownerId'] == _currentUid;
-                            } catch (_) {
-                              return false;
-                            }
+                            final doc = e['doc'] as Map<String, dynamic>?;
+                            if (doc == null) continue;
+                            if (doc['ownerId'] != _currentUid) continue;
                           }
-                          // apply advanced filter if present
                           if (_currentFilter != null) {
-                            try {
-                              final doc = e['doc'] as Map<String, dynamic>?;
-                              if (doc == null) return false;
-                              final species =
-                                  _currentFilter?['species'] as String?;
-                              if (species != null &&
-                                  species.trim().isNotEmpty) {
-                                final ds = (doc['species'] ?? '').toString();
-                                if (!ds.toLowerCase().contains(
-                                  species.toLowerCase(),
-                                ))
-                                  return false;
+                            final doc = e['doc'] as Map<String, dynamic>?;
+                            if (doc == null) continue;
+                            final species =
+                                _currentFilter?['species'] as String?;
+                            if (species != null && species.trim().isNotEmpty) {
+                              final ds = (doc['species'] ?? '').toString();
+                              if (!ds.toLowerCase().contains(
+                                species.toLowerCase(),
+                              ))
+                                continue;
+                            }
+                            final wMin = (_currentFilter?['weightMin'] as num?)
+                                ?.toDouble();
+                            final wMax = (_currentFilter?['weightMax'] as num?)
+                                ?.toDouble();
+                            if (wMin != null || wMax != null) {
+                              double? w;
+                              final val = doc['weight'];
+                              if (val is num)
+                                w = val.toDouble();
+                              else if (val is String)
+                                w = double.tryParse(val.replaceAll(',', '.'));
+                              if (w == null) continue;
+                              if (wMin != null && w < wMin) continue;
+                              if (wMax != null && w > wMax) continue;
+                            }
+                            final dateIso = _currentFilter?['date'] as String?;
+                            if (dateIso != null) {
+                              try {
+                                final docCreated = doc['createdAt'];
+                                DateTime? created;
+                                if (docCreated is Timestamp)
+                                  created = docCreated.toDate();
+                                else if (docCreated is DateTime)
+                                  created = docCreated;
+                                if (created == null) continue;
+                                final filterDate = DateTime.parse(dateIso);
+                                if (!(created.year == filterDate.year &&
+                                    created.month == filterDate.month &&
+                                    created.day == filterDate.day))
+                                  continue;
+                              } catch (_) {
+                                continue;
                               }
-                              final wMin =
-                                  (_currentFilter?['weightMin'] as num?)
-                                      ?.toDouble();
-                              final wMax =
-                                  (_currentFilter?['weightMax'] as num?)
-                                      ?.toDouble();
-                              if (wMin != null || wMax != null) {
-                                double? w;
-                                final val = doc['weight'];
-                                if (val is num)
-                                  w = val.toDouble();
-                                else if (val is String)
-                                  w = double.tryParse(val.replaceAll(',', '.'));
-                                if (w == null) return false;
-                                if (wMin != null && w < wMin) return false;
-                                if (wMax != null && w > wMax) return false;
-                              }
-                              final dateIso =
-                                  _currentFilter?['date'] as String?;
-                              if (dateIso != null) {
-                                try {
-                                  final docCreated = doc['createdAt'];
-                                  DateTime? created;
-                                  if (docCreated is Timestamp)
-                                    created = docCreated.toDate();
-                                  else if (docCreated is DateTime)
-                                    created = docCreated;
-                                  if (created == null) return false;
-                                  final filterDate = DateTime.parse(dateIso);
-                                  if (!(created.year == filterDate.year &&
-                                      created.month == filterDate.month &&
-                                      created.day == filterDate.day))
-                                    return false;
-                                } catch (_) {
-                                  return false;
-                                }
-                              }
-                            } catch (_) {
-                              return false;
                             }
                           }
-                          return true;
-                        })
-                        .map((e) {
-                          final LatLng markerPoint = e['point'] as LatLng;
-                          return Marker(
-                            width: 44,
-                            height: 44,
-                            point: markerPoint,
-                            child: PhotoMarker(
-                              size: 36,
-                              onTap: () => _showPhotoDialog(
-                                e['url'] as String,
-                                e['doc'] as Map<String, dynamic>,
-                              ),
+                          final String id =
+                              (e['doc'] != null &&
+                                  (e['doc'] as Map).containsKey('docId'))
+                              ? (e['doc']['docId'] as String)
+                              : (e['docId'] ?? e['id'] ?? e['path'] ?? '');
+                          if (id.isEmpty) continue;
+                          if (uniq.containsKey(id)) continue;
+                          uniq[id] = Map<String, dynamic>.from(e);
+                        } catch (_) {}
+                      }
+                      return uniq.values.map((e) {
+                        final LatLng markerPoint = e['point'] as LatLng;
+                        return Marker(
+                          width: 44,
+                          height: 44,
+                          point: markerPoint,
+                          child: PhotoMarker(
+                            size: 36,
+                            onTap: () => _showPhotoDialog(
+                              e['url'] as String,
+                              e['doc'] as Map<String, dynamic>,
                             ),
-                          );
-                        })
-                        .toList(),
+                          ),
+                        );
+                      }).toList();
+                    })(),
                   ],
                   builder: (context, markers) {
                     return GestureDetector(
@@ -1222,7 +1256,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                             if (p.longitude > maxLng) maxLng = p.longitude;
                           }
                           const double eps = 0.0005; // ~50m buffer
-                          final clusterEntries = _photoEntries.where((e) {
+                          final filtered = _photoEntries.where((e) {
                             final LatLng? p = e['point'] as LatLng?;
                             if (p == null) return false;
                             final inBox =
@@ -1242,6 +1276,21 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                             }
                             return true;
                           }).toList();
+                          // Deduplicate by docId/path/id
+                          final Map<String, Map<String, dynamic>> uniq = {};
+                          for (final e in filtered) {
+                            try {
+                              final String id =
+                                  (e['doc'] != null &&
+                                      (e['doc'] as Map).containsKey('docId'))
+                                  ? (e['doc']['docId'] as String)
+                                  : (e['docId'] ?? e['id'] ?? e['path'] ?? '');
+                              if (id.isEmpty) continue;
+                              if (uniq.containsKey(id)) continue;
+                              uniq[id] = Map<String, dynamic>.from(e);
+                            } catch (_) {}
+                          }
+                          final clusterEntries = uniq.values.toList();
                           // sort cluster entries by weight (descending) so heaviest appear first
                           double _parseWeightFromEntry(
                             Map<String, dynamic>? e,
@@ -1567,7 +1616,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                       if (p.longitude > maxLng) maxLng = p.longitude;
                     }
                     const double eps = 0.0005;
-                    final clusterEntries = _photoEntries.where((e) {
+                    final filtered = _photoEntries.where((e) {
                       final LatLng? p = e['point'] as LatLng?;
                       if (p == null) return false;
                       final inBox =
@@ -1586,6 +1635,20 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                       }
                       return true;
                     }).toList();
+                    final Map<String, Map<String, dynamic>> uniq = {};
+                    for (final e in filtered) {
+                      try {
+                        final String id =
+                            (e['doc'] != null &&
+                                (e['doc'] as Map).containsKey('docId'))
+                            ? (e['doc']['docId'] as String)
+                            : (e['docId'] ?? e['id'] ?? e['path'] ?? '');
+                        if (id.isEmpty) continue;
+                        if (uniq.containsKey(id)) continue;
+                        uniq[id] = Map<String, dynamic>.from(e);
+                      } catch (_) {}
+                    }
+                    final clusterEntries = uniq.values.toList();
                     // Debug: log counts when cluster is tapped
                     // ignore: avoid_print
                     print(
@@ -1945,6 +2008,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             ),
           // Gallery button top-right
           // Event button top-left (under header) - placeholder icon, behaviour to be added
+          // Event button (top-left) with sparkle/pulse
           Positioned(
             top: 16,
             left: 16,
@@ -2031,6 +2095,28 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     ),
                   );
                 },
+              ),
+            ),
+          ),
+
+          // Message-log button (left, mid-screen) — static, no pulse — positioned around middle
+          Positioned(
+            top: MediaQuery.of(context).size.height * 0.5,
+            left: 16,
+            child: SafeArea(
+              child: FloatingActionButton(
+                heroTag: 'my_messages_log',
+                mini: true,
+                backgroundColor: AppTheme.primaryColor,
+                shape: const CircleBorder(
+                  side: BorderSide(color: Colors.black, width: 2),
+                ),
+                onPressed: _openMyMessagesLog,
+                child: _outlinedIcon(
+                  Icons.mark_chat_unread,
+                  size: 18,
+                  color: AppTheme.textColor,
+                ),
               ),
             ),
           ),
@@ -2294,6 +2380,163 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         locText = location.toString();
     } catch (_) {}
     return 'url: $url\nownerId: $owner\npublic: $isPublic\nlocation: $locText';
+  }
+
+  Future<void> _openMyMessagesLog() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('not_signed_in'.tr)));
+      return;
+    }
+    try {
+      // Query messages where current user is a participant (array-contains)
+      final snap = await FirebaseFirestore.instance
+          .collectionGroup('messages')
+          .where('participants', arrayContains: user.uid)
+          .get();
+
+      // Collect unique parent image document references (parent.parent)
+      final Map<String, DocumentReference> parentRefs = {};
+      for (final d in snap.docs) {
+        final parent = d.reference.parent.parent;
+        if (parent != null) parentRefs[parent.path] = parent;
+      }
+
+      final entries = <Map<String, dynamic>>[];
+      for (final ref in parentRefs.values) {
+        try {
+          final docSnap = await ref.get();
+          if (!docSnap.exists) continue;
+          final data = docSnap.data() as Map<String, dynamic>;
+          entries.add({'ref': ref, 'doc': data, 'path': ref.path});
+        } catch (_) {}
+      }
+
+      // Sort entries by their doc createdAt (most recent first) client-side
+      entries.sort((a, b) {
+        final da = a['doc']['createdAt'];
+        final db = b['doc']['createdAt'];
+        DateTime ta = DateTime.fromMillisecondsSinceEpoch(0);
+        DateTime tb = DateTime.fromMillisecondsSinceEpoch(0);
+        try {
+          if (da is Timestamp) ta = da.toDate();
+        } catch (_) {}
+        try {
+          if (db is Timestamp) tb = db.toDate();
+        } catch (_) {}
+        return tb.compareTo(ta);
+      });
+
+      if (!mounted) return;
+      if (entries.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('no_messages'.tr)));
+        return;
+      }
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: AppTheme.surfaceColor,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        ),
+        builder: (ctx) {
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(ctx).size.height * 0.75,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Text(
+                      'my_message_locations'.tr,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: entries.length,
+                      itemBuilder: (c, i) {
+                        final e = entries[i];
+                        final Map<String, dynamic> doc =
+                            e['doc'] as Map<String, dynamic>;
+                        final url = doc['url'] as String?;
+                        final loc = doc['location'] as GeoPoint?;
+                        final id = e['ref'].id;
+                        final title =
+                            doc['species'] ?? doc['uploaderName'] ?? id;
+                        DateTime? when;
+                        try {
+                          final ts = doc['createdAt'];
+                          if (ts is Timestamp) when = ts.toDate();
+                        } catch (_) {}
+
+                        return ListTile(
+                          leading: url != null
+                              ? SizedBox(
+                                  width: 48,
+                                  height: 48,
+                                  child: CachedNetworkImage(
+                                    imageUrl: url,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : CircleAvatar(child: const Icon(Icons.photo)),
+                          title: Text(title.toString()),
+                          subtitle: Text(
+                            when != null
+                                ? when.toLocal().toString().split('.').first
+                                : e['path'],
+                          ),
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            // Move map if location exists
+                            if (loc != null) {
+                              try {
+                                final target = LatLng(
+                                  loc.latitude,
+                                  loc.longitude,
+                                );
+                                if (_mapReady)
+                                  _mapController.move(target, 16.0);
+                              } catch (_) {}
+                            }
+                            // open photo dialog
+                            _showPhotoDialog(
+                              url ?? '',
+                              Map<String, dynamic>.from(doc),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('error_occurred'.tr + ': ${e.toString()}')),
+      );
+    }
   }
 }
 

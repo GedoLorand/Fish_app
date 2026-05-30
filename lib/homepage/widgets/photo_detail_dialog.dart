@@ -789,9 +789,31 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                             return;
                           }
                           try {
+                            // build participants list (include sender and owner if available)
+                            final participants = <String>{currentUid};
+                            if (_ownerId != null && _ownerId!.trim().isNotEmpty)
+                              participants.add(_ownerId!);
+
+                            // DEBUG: log target path and payload to help find where messages are written
+                            // (remove these prints after debugging)
+                            // ignore: avoid_print
+                            print(
+                              'DEBUG: writing message to: ${imageMessagesRef.path}',
+                            );
+                            // ignore: avoid_print
+                            print(
+                              'DEBUG: message payload: ' +
+                                  {
+                                    'senderUid': currentUid,
+                                    'text': text,
+                                    'participants': participants.toList(),
+                                  }.toString(),
+                            );
+
                             await imageMessagesRef.add({
                               'senderUid': currentUid,
                               'text': text,
+                              'participants': participants.toList(),
                               'createdAt': FieldValue.serverTimestamp(),
                             });
                             ctrl.clear();
