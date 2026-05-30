@@ -31,14 +31,13 @@ class _SettingsState extends State<Settings> {
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     final uid = FirebaseAuth.instance.currentUser?.uid;
-    // Only use the per-user cached avatar when signed in. Avoid a generic
-    // fallback because it can cause one user's avatar to appear for others.
+    // Only use the per-user cached avatar when signed in.
     String? localAvatar = uid != null
         ? prefs.getString('user_avatar_$uid')
         : null;
     String? firestoreAvatar;
+    String? firestoreName;
     try {
-      final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid != null) {
         final doc = await FirebaseFirestore.instance
             .collection('users')
@@ -46,18 +45,32 @@ class _SettingsState extends State<Settings> {
             .get();
         if (doc.exists) {
           final data = doc.data();
-          if (data != null && data['avatar'] != null) {
-            firestoreAvatar = data['avatar'] as String?;
+          if (data != null) {
+            if (data['avatar'] != null)
+              firestoreAvatar = data['avatar'] as String?;
+            if (data['name'] != null) firestoreName = data['name'] as String?;
           }
         }
       }
     } catch (_) {}
+
+    // Determine initial name: prefer Firestore name, then per-user prefs,
+    // then auth displayName, then email local-part, else empty.
+    String initialName = '';
+    final authUser = FirebaseAuth.instance.currentUser;
+    if (firestoreName != null && firestoreName.trim().isNotEmpty) {
+      initialName = firestoreName;
+    } else if (uid != null && prefs.getString('user_name_$uid') != null) {
+      initialName = prefs.getString('user_name_$uid')!;
+    } else if (authUser?.displayName != null &&
+        authUser!.displayName!.trim().isNotEmpty) {
+      initialName = authUser!.displayName!;
+    } else if (authUser?.email != null) {
+      initialName = authUser!.email!.split('@').first;
+    }
+
     setState(() {
-      _nameController.text = uid != null
-          ? prefs.getString('user_name_$uid') ??
-                prefs.getString('user_name') ??
-                ''
-          : prefs.getString('user_name') ?? '';
+      _nameController.text = initialName;
       _avatarBase64 = firestoreAvatar ?? localAvatar;
       _language = prefs.getString('user_language') ?? 'hu';
     });
@@ -80,6 +93,12 @@ class _SettingsState extends State<Settings> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid != null) {
       await prefs.setString('user_name_$uid', _nameController.text);
+      try {
+        final docRef = FirebaseFirestore.instance.collection('users').doc(uid);
+        await docRef.set({
+          'name': _nameController.text,
+        }, SetOptions(merge: true));
+      } catch (_) {}
     } else {
       await prefs.setString('user_name', _nameController.text);
     }

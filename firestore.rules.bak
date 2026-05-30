@@ -1,83 +1,55 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Szabályok a top-level /images/{imageId} gyűjteményhez
+    // Top-level images collection
     match /images/{imageId} {
-      // Olvasás: Engedélyezett, ha a kép nyilvános (public: true),
-      // VAGY ha a felhasználó be van jelentkezve és ő a kép tulajdonosa.
       allow read: if resource.data.public == true || (request.auth != null && request.auth.uid == resource.data.ownerId);
-
-      // Létrehozás: Csak bejelentkezett felhasználók hozhatnak létre képet,
-      // és a létrehozott kép `ownerId` mezőjének meg kell egyeznie a felhasználó UID-jével.
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.ownerId;
-
-      // Frissítés és törlés: Csak bejelentkezett felhasználók módosíthatják vagy törölhetik a képet,
-      // ha ők a kép tulajdonosai.
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if request.auth != null && request.auth.uid == resource.data.ownerId;
     }
 
-    // Szabály a collectionGroup('images') lekérdezésekhez
-    // EZ A SOR VOLT HIBÁS A COPILOT JAVASLATÁBAN! A {path=**} REKURZÍV HELYETTESÍTŐ SZÜKSÉGES.
-    // Ez a szabály elengedhetetlen ahhoz, hogy a collectionGroup lekérdezések működjenek
-    // bármilyen `images` nevű alkollekción keresztül.
-    // Ugyanazokat az olvasási feltételeket alkalmazza, mint a top-level /images/{imageId} szabály.
-    match /{path=**}/images/{imageId} { // Itt van a különbség: {path=**}
+    // collectionGroup rule for images in arbitrary paths
+    match /{path=**}/images/{imageId} {
       allow read: if resource.data.public == true || (request.auth != null && request.auth.uid == resource.data.ownerId);
     }
 
-    // Szabályok a felhasználó-specifikus /users/{userId}/images/{imageId} gyűjteményhez
+    // user-specific images
     match /users/{userId}/images/{imageId} {
-      // Olvasás: Engedélyezett, ha a kép nyilvános (public: true),
-      // VAGY ha a felhasználó be van jelentkezve és ő a megadott userId.
       allow read: if resource.data.public == true || (request.auth != null && request.auth.uid == userId);
-
-      // Létrehozás: Csak bejelentkezett felhasználók hozhatnak létre képet a saját `userId` útvonaluk alatt.
       allow create: if request.auth != null && request.auth.uid == userId;
-
-      // Frissítés és törlés: Csak bejelentkezett felhasználók módosíthatják vagy törölhetik a képet
-      // a saját `userId` útvonaluk alatt.
       allow update, delete: if request.auth != null && request.auth.uid == userId;
     }
 
-    // ÚJ SZABÁLYOK A /reports GYŰJTEMÉNYHEZ
+    // reports
     match /reports/{reportId} {
-      // Létrehozás: Bármely bejelentkezett felhasználó létrehozhat jelentést,
-      // feltéve, hogy a 'reason' mező egy string és legfeljebb 200 karakter hosszú.
       allow create: if request.auth != null
                     && request.resource.data.reason is string
                     && request.resource.data.reason.size() <= 200;
-
-      // Olvasás és Törlés: Csak adminisztrátorok (akiknek van 'admin: true' custom claim-jük)
-      // olvashatnak és törölhetnek jelentéseket.
       allow read, delete: if request.auth != null && request.auth.token.admin == true;
     }
 
-    // ÚJ SZABÁLYOK A /private_messages GYŰJTEMÉNYHEZ
+    // private messages
     match /private_messages/{messageId} {
-      // Létrehozás:
-      // - Csak hitelesített felhasználók.
-      // - A létrehozott dokumentum 'senderUid' mezője megegyezzen a request.auth.uid-val.
-      // - A 'participants' mező egy 2 elemű lista legyen, és tartalmazza a request.auth.uid-t.
       allow create: if request.auth != null
                     && request.resource.data.senderUid == request.auth.uid
                     && request.resource.data.participants is list
                     && request.resource.data.participants.size() == 2
-                    && request.auth.uid in request.resource.data.participants;
+                    && request.resource.data.participants.contains(request.auth.uid);
 
-      // Olvasás:
-      // - Csak azok a felhasználók olvashatják, akik szerepelnek a 'participants' listában.
       allow read: if request.auth != null
-                  && request.auth.uid in resource.data.participants;
+                  && resource.data.participants is list
+                  && resource.data.participants.contains(request.auth.uid);
 
-      // Frissítés és törlés:
-      // - Teljesen tiltva. (Az alapértelmezett beállítás, ami a "nem engedi az update/delete műveleteket" kérésnek felel meg.)
       allow update, delete: if false;
     }
 
-      }
+    // users
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
+  }
 }
 rules_version = '2';
 service cloud.firestore {

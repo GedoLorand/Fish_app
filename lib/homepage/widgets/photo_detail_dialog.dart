@@ -21,6 +21,9 @@ class PhotoDetailDialog extends StatefulWidget {
 
 class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
   String? _avatarBase64;
+  String? _uploaderName;
+  String? _ownerId;
+  String? _imageDocId;
 
   @override
   void initState() {
@@ -42,15 +45,31 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
               .get();
           if (userDoc.exists) {
             final data = userDoc.data();
-            if (data != null && data['avatar'] != null) {
-              final avatar = data['avatar'] as String?;
-              if (!mounted) return;
-              setState(() => _avatarBase64 = avatar);
-              return;
+            if (data != null) {
+              if (data['avatar'] != null) {
+                final avatar = data['avatar'] as String?;
+                if (!mounted) return;
+                setState(() => _avatarBase64 = avatar);
+                return;
+              }
+              if (data['name'] != null &&
+                  (data['name'] as String).trim().isNotEmpty) {
+                // prefer storing uploader name from user doc so renames are reflected
+                if (!mounted) return;
+                setState(() => _uploaderName = data['name'] as String?);
+                // don't return; still allow prefs fallback for avatar
+              }
             }
           }
         } catch (_) {}
       }
+      // store ownerId and imageDocId for chat/actions
+      _ownerId = ownerId;
+      _imageDocId = widget.doc != null && widget.doc!.containsKey('docId')
+          ? (widget.doc!['docId'] as String?)
+          : (widget.doc != null && widget.doc!.containsKey('fileName')
+                ? (widget.doc!['fileName'] as String?)
+                : null);
       // Fallback: use local user avatar from shared preferences
       final prefs = await SharedPreferences.getInstance();
       // try to load a cached per-owner avatar in prefs before falling back to generic
@@ -203,16 +222,29 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Show uploader name prominently with avatar if available
-                          if (doc != null &&
-                              doc['uploaderName'] != null &&
-                              (doc['uploaderName'] as String).trim().isNotEmpty)
-                            Padding(
+                          // prefer the name stored on the user's Firestore doc so
+                          // renames are immediately reflected across existing photos;
+                          // fall back to the uploaderName stored on the image doc.
+                          (() {
+                            final docName =
+                                doc != null &&
+                                    doc['uploaderName'] != null &&
+                                    (doc['uploaderName'] as String)
+                                        .trim()
+                                        .isNotEmpty
+                                ? doc['uploaderName'] as String
+                                : null;
+                            final displayName = _uploaderName ?? docName;
+                            if (displayName == null ||
+                                displayName.trim().isEmpty)
+                              return const SizedBox.shrink();
+                            return Padding(
                               padding: const EdgeInsets.only(bottom: 8.0),
                               child: Row(
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      '${'uploader'.tr}: ${doc['uploaderName']}',
+                                      '${'uploader'.tr}: $displayName',
                                       style: TextStyle(
                                         color: AppTheme.textColor,
                                         fontWeight: FontWeight.bold,
@@ -239,7 +271,8 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                                   ),
                                 ],
                               ),
-                            ),
+                            );
+                          })(),
                           // header removed per UX request
                           // render all available details dynamically
                           for (final e in details)
@@ -251,15 +284,27 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                               ),
                             ),
                           const SizedBox(height: 4),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton(
-                              onPressed: () => Navigator.of(context).pop(),
-                              child: Text(
-                                'cancel'.tr,
-                                style: TextStyle(color: AppTheme.primaryColor),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  Icons.message,
+                                  color: AppTheme.primaryColor,
+                                ),
+                                tooltip: 'private_message'.tr,
+                                onPressed: _openPrivateChat,
                               ),
-                            ),
+                              const Spacer(),
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(),
+                                child: Text(
+                                  'cancel'.tr,
+                                  style: TextStyle(
+                                    color: AppTheme.primaryColor,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -365,6 +410,7 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                             ),
                           ],
                         ),
+                        // (private message button moved below into the details area)
                       ],
                     ),
                   ),
@@ -466,5 +512,161 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
       default:
         return value.toString();
     }
+  }
+
+  void _openPrivateChat() {
+    if (_imageDocId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('chat_unavailable'.tr)));
+      return;
+    }
+
+    final imageMessagesRef = FirebaseFirestore.instance
+        .collection('images')
+        .doc(_imageDocId)
+        .collection('messages');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.surfaceColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (ctx) {
+        final TextEditingController ctrl = TextEditingController();
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: SizedBox(
+            height: MediaQuery.of(ctx).size.height * 0.6,
+            child: Column(
+              children: [
+                Expanded(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: imageMessagesRef
+                        .orderBy('createdAt', descending: false)
+                        .snapshots(includeMetadataChanges: true),
+                    builder: (c, snap) {
+                      if (snap.hasError) {
+                        final err = snap.error;
+                        // ignore: avoid_print
+                        print('Firestore image messages stream error: $err');
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Text(
+                              'error_loading_messages: ${err.toString()}',
+                            ),
+                          ),
+                        );
+                      }
+                      if (snap.connectionState == ConnectionState.waiting &&
+                          (snap.data?.docs ?? []).isEmpty) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      final docs = snap.data?.docs ?? [];
+                      if (docs.isEmpty)
+                        return Center(child: Text('no_messages'.tr));
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: docs.length,
+                        itemBuilder: (context, i) {
+                          final m = docs[i].data() as Map<String, dynamic>;
+                          final sender = m['senderUid'] as String?;
+                          final text = m['text'] as String? ?? '';
+                          final isMe =
+                              sender == FirebaseAuth.instance.currentUser?.uid;
+                          return Align(
+                            alignment: isMe
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isMe
+                                    ? Colors.blueAccent
+                                    : Colors.grey.shade700,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                text,
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+                SafeArea(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: TextField(
+                            controller: ctrl,
+                            decoration: InputDecoration(
+                              hintText: 'type_message'.tr,
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () async {
+                          final text = ctrl.text.trim();
+                          if (text.isEmpty) return;
+                          final currentUid =
+                              FirebaseAuth.instance.currentUser?.uid;
+                          if (currentUid == null) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('not_signed_in'.tr)),
+                            );
+                            return;
+                          }
+                          try {
+                            await imageMessagesRef.add({
+                              'senderUid': currentUid,
+                              'text': text,
+                              'createdAt': FieldValue.serverTimestamp(),
+                            });
+                            ctrl.clear();
+                          } catch (e) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  '${'send_failed'.tr}: ${e.toString()}',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.send),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }

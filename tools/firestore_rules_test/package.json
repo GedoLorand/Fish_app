@@ -1,0 +1,11 @@
+{
+  "name": "firestore-rules-test",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "@firebase/rules-unit-testing": "^2.3.7"
+  }
+}
