@@ -24,6 +24,7 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
   String? _uploaderName;
   String? _ownerId;
   String? _imageDocId;
+  final Map<String, Map<String, dynamic>> _userCache = {};
 
   @override
   void initState() {
@@ -82,6 +83,53 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
       if (!mounted) return;
       setState(() => _avatarBase64 = a);
     } catch (_) {}
+  }
+
+  // Ensure user docs (avatar/name) are cached for all senders found in messages.
+  // This batches missing user fetches and falls back to SharedPreferences when Firestore doc is absent.
+  bool _fetchingUsers = false;
+  Future<void> _ensureUsersCached(List<QueryDocumentSnapshot> docs) async {
+    if (_fetchingUsers) return;
+    final missing = <String>{};
+    for (final d in docs) {
+      try {
+        final m = d.data() as Map<String, dynamic>;
+        final s = m['senderUid'] as String?;
+        if (s != null && !_userCache.containsKey(s)) missing.add(s);
+      } catch (_) {}
+    }
+    if (missing.isEmpty) return;
+    _fetchingUsers = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final futures = missing.map((uid) async {
+        try {
+          final doc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .get();
+          if (doc.exists && doc.data() != null)
+            return MapEntry(uid, doc.data()!);
+        } catch (_) {}
+        // fallback to prefs keys
+        final avatar = prefs.getString('user_avatar_$uid');
+        final name = prefs.getString('user_name_$uid');
+        final map = <String, dynamic>{};
+        if (avatar != null) map['avatar'] = avatar;
+        if (name != null) map['name'] = name;
+        return MapEntry(uid, map);
+      }).toList();
+
+      final results = await Future.wait(futures);
+      final Map<String, Map<String, dynamic>> updates = {};
+      for (final e in results) updates[e.key] = e.value;
+      if (!mounted) return;
+      setState(() {
+        _userCache.addAll(updates);
+      });
+    } finally {
+      _fetchingUsers = false;
+    }
   }
 
   @override
@@ -571,6 +619,8 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                       final docs = snap.data?.docs ?? [];
                       if (docs.isEmpty)
                         return Center(child: Text('no_messages'.tr));
+                      // batch-fetch missing user profiles for avatars/names
+                      _ensureUsersCached(docs);
                       return ListView.builder(
                         padding: const EdgeInsets.all(12),
                         itemCount: docs.length,
@@ -580,27 +630,120 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                           final text = m['text'] as String? ?? '';
                           final isMe =
                               sender == FirebaseAuth.instance.currentUser?.uid;
-                          return Align(
-                            alignment: isMe
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Container(
-                              margin: const EdgeInsets.symmetric(vertical: 6),
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 8,
-                                horizontal: 12,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isMe
-                                    ? Colors.blueAccent
-                                    : Colors.grey.shade700,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                text,
-                                style: TextStyle(color: Colors.white),
-                              ),
+
+                          final userData = sender != null
+                              ? _userCache[sender]
+                              : null;
+                          final avatarStr = userData != null
+                              ? userData['avatar'] as String?
+                              : null;
+                          final displayName = userData != null
+                              ? (userData['name'] as String?)
+                              : null;
+
+                          ImageProvider? avatarImage;
+                          if (avatarStr != null && avatarStr.isNotEmpty) {
+                            try {
+                              avatarImage = avatarStr.startsWith('http')
+                                  ? NetworkImage(avatarStr)
+                                  : MemoryImage(base64Decode(avatarStr))
+                                        as ImageProvider;
+                            } catch (_) {
+                              avatarImage = null;
+                            }
+                          }
+
+                          final bubble = Container(
+                            margin: const EdgeInsets.symmetric(vertical: 6),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 8,
+                              horizontal: 12,
                             ),
+                            decoration: BoxDecoration(
+                              color: isMe
+                                  ? Colors.blueAccent
+                                  : Colors.grey.shade700,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (!isMe &&
+                                    displayName != null &&
+                                    displayName.trim().isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 4.0),
+                                    child: Text(
+                                      displayName,
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                Text(
+                                  text,
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          return Row(
+                            mainAxisAlignment: isMe
+                                ? MainAxisAlignment.end
+                                : MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: isMe
+                                ? [
+                                    // my message: bubble then my small avatar
+                                    Flexible(
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxWidth:
+                                              MediaQuery.of(
+                                                context,
+                                              ).size.width *
+                                              0.75,
+                                        ),
+                                        child: bubble,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    CircleAvatar(
+                                      radius: 14,
+                                      backgroundColor: Colors.grey.shade800,
+                                      backgroundImage: avatarImage,
+                                      child: avatarImage == null
+                                          ? const Icon(Icons.person, size: 16)
+                                          : null,
+                                    ),
+                                  ]
+                                : [
+                                    // other's message: avatar then bubble
+                                    CircleAvatar(
+                                      radius: 14,
+                                      backgroundColor: Colors.grey.shade800,
+                                      backgroundImage: avatarImage,
+                                      child: avatarImage == null
+                                          ? const Icon(Icons.person, size: 16)
+                                          : null,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Flexible(
+                                      child: ConstrainedBox(
+                                        constraints: BoxConstraints(
+                                          maxWidth:
+                                              MediaQuery.of(
+                                                context,
+                                              ).size.width *
+                                              0.75,
+                                        ),
+                                        child: bubble,
+                                      ),
+                                    ),
+                                  ],
                           );
                         },
                       );
@@ -615,8 +758,14 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                           padding: const EdgeInsets.symmetric(horizontal: 8.0),
                           child: TextField(
                             controller: ctrl,
+                            keyboardType: TextInputType.text,
+                            enableSuggestions: true,
+                            autocorrect: true,
+                            cursorColor: Colors.black,
+                            style: const TextStyle(color: Colors.black),
                             decoration: InputDecoration(
                               hintText: 'type_message'.tr,
+                              hintStyle: TextStyle(color: Colors.black54),
                               filled: true,
                               fillColor: Colors.white,
                               border: OutlineInputBorder(
