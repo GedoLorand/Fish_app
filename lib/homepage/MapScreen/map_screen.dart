@@ -22,6 +22,7 @@ import 'package:login_fish_app/homepage/MapScreen/cluster_sheet.dart';
 import 'package:login_fish_app/homepage/MapScreen/cluster_statistics.dart';
 import 'package:login_fish_app/homepage/EventScreen/event_screen.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
+import 'package:login_fish_app/homepage/Leaderboard/leaderboard_screen.dart';
 import 'package:login_fish_app/homepage/GalleryScreen/Gallery.dart';
 import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
 import 'package:login_fish_app/homepage/MapScreen/photo_marker.dart';
@@ -632,6 +633,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ],
             ),
           ),
+
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -2157,6 +2159,41 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     ),
                   );
                 },
+              ),
+            ),
+          ),
+
+          // Leaderboard button under event icon
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 72,
+            left: 16,
+            child: SafeArea(
+              child: FloatingActionButton(
+                heroTag: 'leaderboard_fab',
+                mini: true,
+                elevation: 6,
+                backgroundColor: Colors.orange,
+                shape: const CircleBorder(
+                  side: BorderSide(color: Colors.black, width: 2),
+                ),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const LeaderboardScreen(),
+                    ),
+                  );
+                },
+                child: Image.asset(
+                  'assets/icon/podium_icon.png',
+                  width: 20,
+                  height: 20,
+                  fit: BoxFit.contain,
+                  errorBuilder: (c, e, s) => _outlinedIcon(
+                    Icons.emoji_events,
+                    size: 18,
+                    color: AppTheme.textColor,
+                  ),
+                ),
               ),
             ),
           ),
