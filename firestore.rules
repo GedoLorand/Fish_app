@@ -150,5 +150,23 @@ service cloud.firestore {
           allow update, delete: if false;
         }
 
+        // Leaderboard (top10)
+        match /leaderboard/{docId} {
+          // Allow reads for signed-in users
+          allow read: if isSignedIn();
+
+          // Allow clients to create/update a leaderboard doc that contains
+          // an 'entries' list with at most 10 items. This enables quick
+          // client-side testing. For production consider server-side
+          // validation (Cloud Function) or admin-only writes.
+          allow create, update: if isSignedIn()
+                                && request.resource.data.keys().hasAny(['entries'])
+                                && request.resource.data.entries is list
+                                && request.resource.data.entries.size() <= 10;
+
+          // Deletion restricted to admins
+          allow delete: if isSignedIn() && request.auth.token.admin == true;
+        }
+
       }
     }

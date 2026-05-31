@@ -1023,6 +1023,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           .collection('images')
           .add(docData);
 
+      // (Leaderboard update will be executed after writing the top-level /images doc)
+
       // Store the generated doc id inside the document for reliable later reference
       try {
         await docRef.update({'docId': docRef.id});
@@ -1069,6 +1071,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               'userDocPath': '/users/$uid',
               'docId': docRef.id,
             });
+        // After creating the public image doc, force-insert into leaderboard top
+        try {
+          await _forceInsertLeaderboardTop(docData, docRef.id);
+        } catch (_) {}
         // Also update a lightweight meta "ping" document so other clients
         // that may not immediately receive collectionGroup updates will
         // trigger a server refresh via the ping listener added in initState.
@@ -1147,6 +1153,144 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     } catch (e) {
       // ignore: avoid_print
       print('debug HTTP invoke failed: $e');
+    }
+  }
+
+  // Update leaderboard (top 10 by weight) if the uploaded photo has a weight
+  Future<void> _maybeUpdateLeaderboard(
+    Map<String, dynamic> docData,
+    String docId,
+  ) async {
+    try {
+      // Accept common weight keys
+      final raw = docData['weight'] ?? docData['weightKg'] ?? docData['kg'];
+      double? weight;
+      if (raw is num)
+        weight = raw.toDouble();
+      else if (raw is String) {
+        weight = double.tryParse((raw as String).replaceAll(',', '.'));
+      }
+      if (weight == null) return; // nothing to rank
+
+      final lbRef = FirebaseFirestore.instance
+          .collection('leaderboard')
+          .doc('top10');
+
+      await FirebaseFirestore.instance.runTransaction((tx) async {
+        final snap = await tx.get(lbRef);
+        List entries = [];
+        if (snap.exists) {
+          final data = snap.data() as Map<String, dynamic>?;
+          if (data != null && data['entries'] is List)
+            entries = List.from(data['entries']);
+        }
+
+        // Remove any existing entry for this docId
+        entries.removeWhere((e) => e is Map && e['docId'] == docId);
+
+        final createdAt = (docData['createdAt'] is Timestamp)
+            ? docData['createdAt'] as Timestamp
+            : Timestamp.now();
+
+        final Map<String, dynamic> entry = {
+          'docId': docId,
+          'url': docData['url'] ?? '',
+          'weight': weight,
+          'uploaderName': docData['uploaderName'] ?? '',
+          'createdAt': createdAt,
+        };
+
+        entries.add(entry);
+
+        entries.sort((a, b) {
+          final da = a is Map ? a['weight'] : null;
+          final db = b is Map ? b['weight'] : null;
+          final wa = (da is num)
+              ? da.toDouble()
+              : double.tryParse(da?.toString() ?? '') ??
+                    double.negativeInfinity;
+          final wb = (db is num)
+              ? db.toDouble()
+              : double.tryParse(db?.toString() ?? '') ??
+                    double.negativeInfinity;
+          return wb.compareTo(wa);
+        });
+
+        if (entries.length > 10) entries = entries.sublist(0, 10);
+
+        tx.set(lbRef, {'entries': entries}, SetOptions(merge: true));
+      });
+    } catch (e) {
+      // ignore leaderboard update failures but log for debugging
+      // ignore: avoid_print
+      print('leaderboard update failed: $e');
+    }
+  }
+
+  // Force insert the uploaded entry to the top (index 0) of leaderboard/top10
+  Future<void> _forceInsertLeaderboardTop(
+    Map<String, dynamic> docData,
+    String docId,
+  ) async {
+    try {
+      final raw = docData['weight'] ?? docData['weightKg'] ?? docData['kg'];
+      double? weight;
+      if (raw is num)
+        weight = raw.toDouble();
+      else if (raw is String)
+        weight = double.tryParse(raw.replaceAll(',', '.'));
+      if (weight == null) return;
+
+      final lbRef = FirebaseFirestore.instance
+          .collection('leaderboard')
+          .doc('top10');
+
+      await FirebaseFirestore.instance.runTransaction((tx) async {
+        final snap = await tx.get(lbRef);
+        List entries = [];
+        if (snap.exists) {
+          final data = snap.data() as Map<String, dynamic>?;
+          if (data != null && data['entries'] is List)
+            entries = List.from(data['entries']);
+        }
+
+        // Build new entry
+        final createdAt = (docData['createdAt'] is Timestamp)
+            ? docData['createdAt'] as Timestamp
+            : Timestamp.now();
+        final Map<String, dynamic> entry = {
+          'docId': docId,
+          'url': docData['url'] ?? '',
+          'weight': weight,
+          'uploaderName': docData['uploaderName'] ?? '',
+          'createdAt': createdAt,
+        };
+
+        // Remove any existing entry for this docId to avoid duplicates,
+        // then insert at top
+        entries.removeWhere((e) => e is Map && e['docId'] == docId);
+        entries.insert(0, entry);
+
+        // Trim to top 10
+        if (entries.length > 10) entries = entries.sublist(0, 10);
+
+        // If less than 10, pad with zero-weight placeholders so UI shows 10
+        while (entries.length < 10) {
+          entries.add({
+            'docId': '',
+            'url': '',
+            'weight': 0,
+            'uploaderName': '',
+            'createdAt': Timestamp.now(),
+          });
+        }
+
+        tx.set(lbRef, {'entries': entries}, SetOptions(merge: true));
+      });
+    } catch (e) {
+      // ignore errors but log
+      // ignore: avoid_print
+      print('forceInsertLeaderboardTop failed: $e');
     }
   }
 
