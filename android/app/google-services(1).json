@@ -22,14 +22,6 @@
           }
         },
         {
-          "client_id": "233643539373-ff3mrj74rvhft5i8vg9lluiuq2j0o96s.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "ro.catchpoint",
-            "certificate_hash": "73bcaf5e83a1ef215b035b9f2b1ca3bd3b708b8b"
-          }
-        },
-        {
           "client_id": "233643539373-fp0flp794ljlsdro2bqpbr49jg6daqa1.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

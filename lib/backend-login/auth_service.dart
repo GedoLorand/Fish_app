@@ -5,8 +5,18 @@ class AuthService {
   /// Signs in with Google and links/authenticates with Firebase.
   /// Returns the [UserCredential] on success, or throws.
   static Future<UserCredential> signInWithGoogle() async {
-    // Ensure the account chooser always appears by signing out first
-    await GoogleSignIn().signOut();
+    // Ensure previous Google sign-in state/tokens are fully cleared so
+    // the account chooser appears and cached credentials don't cause
+    // DEVELOPER_ERROR when switching accounts on device.
+    try {
+      await GoogleSignIn().disconnect();
+    } catch (_) {}
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {}
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (_) {}
     // Trigger the authentication flow (this will show the account chooser)
     final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
     if (googleUser == null) {
