@@ -27,6 +27,7 @@ import 'package:login_fish_app/homepage/GalleryScreen/Gallery.dart';
 import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
 import 'package:login_fish_app/homepage/MapScreen/photo_marker.dart';
 import 'package:login_fish_app/homepage/MapScreen/route_controls.dart';
+import 'package:login_fish_app/homepage/MapScreen/route_distance_bar.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:login_fish_app/helpers/route_helper.dart' as directions_helper;
 import 'package:login_fish_app/helpers/api_key_provider.dart' as api_provider;
@@ -89,6 +90,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   // simple route state: origin (user) -> target (photo)
   List<LatLng> _routePoints = [];
   bool _showRoute = false;
+  LatLng? _routeTarget;
 
   @override
   void initState() {
@@ -228,6 +230,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           try {
             if (_mapReady) _mapController.move(origin, 15.0);
           } catch (_) {}
+          // remember the current target so the distance bar can use it
+          _routeTarget = target;
           if (mounted) setState(() {});
         } catch (_) {}
       });
@@ -2558,6 +2562,30 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             ),
           ),
           // Route and filter controls (moved to separate file)
+          // Distance-to-target bar (updates every minute)
+          // Position the bar above the camera FAB so it doesn't overlap it.
+          if (_showRoute && _routeTarget != null)
+            Positioned(
+              left: 12,
+              right: 12,
+              bottom: 110, // placed above FAB (approx)
+              child: RouteDistanceBar(
+                target: _routeTarget!,
+                getOrigin: () async => _initialPosition,
+                routePoints: _routePoints,
+                onCancel: () {
+                  setState(() {
+                    _showRoute = false;
+                    _routePoints = [];
+                    _routeTarget = null;
+                  });
+                  try {
+                    if (_mapReady && _locationLoaded)
+                      _mapController.move(_initialPosition, _currentZoom);
+                  } catch (_) {}
+                },
+              ),
+            ),
           RouteControls(
             filterActive: _filterOnlyMine || _filtersActive,
             showArrowHint: _showArrowHint && !_showRoute,
