@@ -26,6 +26,7 @@ import 'package:login_fish_app/homepage/Leaderboard/leaderboard_screen.dart';
 import 'package:login_fish_app/homepage/GalleryScreen/Gallery.dart';
 import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
 import 'package:login_fish_app/homepage/MapScreen/photo_marker.dart';
+import 'package:login_fish_app/homepage/MapScreen/route_controls.dart';
 import 'package:login_fish_app/homepage/FilterScreen/filter.dart'
     as filter_screen;
 import 'package:login_fish_app/homepage/AIScreen/ai_assistant.dart';
@@ -82,6 +83,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   StreamSubscription<DocumentSnapshot>? _imagesPingSub;
   StreamSubscription<DocumentSnapshot>? _userDocSub;
   int _unreadMessagesCount = 0;
+  // simple route state: origin (user) -> target (photo)
+  List<LatLng> _routePoints = [];
+  bool _showRoute = false;
 
   @override
   void initState() {
@@ -164,6 +168,36 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             print('images ping listen error: $e');
           },
         );
+    // Listen for lightweight route requests published by the UI helper
+    try {
+      FilterBus.instance.stream.listen((m) {
+        try {
+          if (m == null) return;
+          final route = m['routeTo'] as Map<String, dynamic>?;
+          if (route == null) return;
+          final double? lat = (route['lat'] is num)
+              ? (route['lat'] as num).toDouble()
+              : double.tryParse(route['lat']?.toString() ?? '');
+          final double? lng = (route['lng'] is num)
+              ? (route['lng'] as num).toDouble()
+              : double.tryParse(route['lng']?.toString() ?? '');
+          if (lat == null || lng == null) return;
+          final target = LatLng(lat, lng);
+          final origin = _initialPosition;
+          _routePoints = [origin, target];
+          _showRoute = true;
+          // center map between origin and target
+          final center = LatLng(
+            (origin.latitude + target.latitude) / 2,
+            (origin.longitude + target.longitude) / 2,
+          );
+          try {
+            if (_mapReady) _mapController.move(center, 14.5);
+          } catch (_) {}
+          if (mounted) setState(() {});
+        } catch (_) {}
+      });
+    } catch (_) {}
     // Listen for filter updates from Filter screen
     FilterBus.instance.stream.listen((filter) {
       try {
@@ -1352,6 +1386,17 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   ],
                 ),
               // Cluster layer for photo markers
+              // Route polyline (drawn when a route is requested)
+              if (_showRoute && _routePoints.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: _routePoints,
+                      strokeWidth: 5.0,
+                      color: Colors.greenAccent,
+                    ),
+                  ],
+                ),
               MarkerClusterLayerWidget(
                 options: MarkerClusterLayerOptions(
                   maxClusterRadius: 45,
@@ -2478,80 +2523,33 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
-          // Clear filter button when only-my-items or advanced filters are active
-          if (_filterOnlyMine || _filtersActive)
-            Positioned(
-              top: 112,
-              right: 16,
-              child: SafeArea(
-                child: FloatingActionButton(
-                  heroTag: 'clear_filter_fab',
-                  mini: true,
-                  backgroundColor: AppTheme.primaryColor,
-                  shape: const CircleBorder(
-                    side: BorderSide(color: Colors.black, width: 2),
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _filterOnlyMine = false;
-                      _filtersActive = false;
-                      _currentFilter = null;
-                    });
-                    // notify other screens that filters were cleared; suppress
-                    // the automatic clear hint for this user-initiated action
-                    try {
-                      _suppressNextClearHint = true;
-                      FilterBus.instance.publish(null);
-                    } catch (_) {}
-                  },
-                  child: _filterOffIcon(size: 20),
-                ),
-              ),
-            ),
-          // Hint overlay pointing to the clear-filter FAB when active
-          if (_showArrowHint)
-            Positioned(
-              top: 116,
-              right: 68,
-              child: FadeTransition(
-                opacity: _hintOpacity,
-                child: Material(
-                  color: Colors.transparent,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade600,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.black, width: 2),
-                        ),
-                        child: Text(
-                          'clear_filter'.tr,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      // red arrow with black outline
-                      _outlinedIcon(
-                        Icons.arrow_right_alt,
-                        size: 28,
-                        color: Colors.red.shade200,
-                        // _outlinedIcon's outlineColor defaults to black, keep it
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          // (debug FAB removed)
+          // Route and filter controls (moved to separate file)
+          RouteControls(
+            filterActive: _filterOnlyMine || _filtersActive,
+            showArrowHint: _showArrowHint && !_showRoute,
+            showRoute: _showRoute,
+            onClearFilters: () {
+              setState(() {
+                _filterOnlyMine = false;
+                _filtersActive = false;
+                _currentFilter = null;
+              });
+              try {
+                _suppressNextClearHint = true;
+                FilterBus.instance.publish(null);
+              } catch (_) {}
+            },
+            onCancelRoute: () {
+              setState(() {
+                _showRoute = false;
+                _routePoints = [];
+              });
+              try {
+                if (_mapReady && _locationLoaded)
+                  _mapController.move(_initialPosition, _currentZoom);
+              } catch (_) {}
+            },
+          ),
         ],
       ),
       floatingActionButton: Padding(

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
+import 'package:login_fish_app/homepage/MapScreen/route_helper.dart';
 import 'package:get/get.dart';
 
 class PhotoDetailDialog extends StatefulWidget {
@@ -289,10 +290,18 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                                       ),
                                     ],
                                   ),
-                                  child: const Icon(
-                                    Icons.location_on,
-                                    color: Colors.white,
-                                    size: 18,
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(6),
+                                    onTap: () =>
+                                        RouteHelper.requestRouteFromDoc(
+                                          context,
+                                          widget.doc,
+                                        ),
+                                    child: const Icon(
+                                      Icons.location_on,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
                                   ),
                                 ),
                               ),
