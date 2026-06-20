@@ -38,6 +38,10 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Inject google maps key from key.properties if available
+        manifestPlaceholders["googleMapsKey"] = keystoreProperties["GOOGLE_MAPS_API_KEY"] as? String ?: ""
+        // Inject a separate Directions API key (suitable for REST) if present
+        manifestPlaceholders["directionsKey"] = keystoreProperties["DIRECTIONS_API_KEY"] as? String ?: ""
     }
     signingConfigs {
         create("release") {

@@ -8,6 +8,15 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         
+        <!-- Google Maps API key: injected from key.properties via manifestPlaceholders -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${googleMapsKey}"/>
+        <!-- Directions API key (use a key suitable for REST requests). Injected from key.properties -->
+        <meta-data
+            android:name="ro.catchpoint.DIRECTIONS_API_KEY"
+            android:value="${directionsKey}"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -20,10 +29,10 @@
                  the Android process has started. This theme is visible to the user
                  while the Flutter UI initializes. After that, this theme continues
                  to determine the Window background behind the Flutter UI. -->
-            <meta-data
-              android:name="io.flutter.embedding.android.NormalTheme"
-              android:resource="@style/NormalTheme"
-              />
+                        <meta-data
+                            android:name="io.flutter.embedding.android.NormalTheme"
+                            android:resource="@style/NormalTheme"
+                            />
             
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>

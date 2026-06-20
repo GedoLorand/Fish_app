@@ -27,6 +27,9 @@ import 'package:login_fish_app/homepage/GalleryScreen/Gallery.dart';
 import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
 import 'package:login_fish_app/homepage/MapScreen/photo_marker.dart';
 import 'package:login_fish_app/homepage/MapScreen/route_controls.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
+import 'package:login_fish_app/helpers/route_helper.dart' as directions_helper;
+import 'package:login_fish_app/helpers/api_key_provider.dart' as api_provider;
 import 'package:login_fish_app/homepage/FilterScreen/filter.dart'
     as filter_screen;
 import 'package:login_fish_app/homepage/AIScreen/ai_assistant.dart';
@@ -170,7 +173,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         );
     // Listen for lightweight route requests published by the UI helper
     try {
-      FilterBus.instance.stream.listen((m) {
+      FilterBus.instance.stream.listen((m) async {
         try {
           if (m == null) return;
           final route = m['routeTo'] as Map<String, dynamic>?;
@@ -184,8 +187,43 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           if (lat == null || lng == null) return;
           final target = LatLng(lat, lng);
           final origin = _initialPosition;
-          _routePoints = [origin, target];
-          _showRoute = true;
+
+          // Try to request a routed polyline from Directions API.
+          // NOTE: replace the placeholder below with your actual Directions API key
+          // or provide it via secure config. Do NOT commit real keys to the repo.
+          const String directionsApiKey = 'YOUR_DIRECTIONS_API_KEY';
+
+          try {
+            // obtain api key from native manifest meta-data at runtime
+            final apiKey =
+                await api_provider.ApiKeyProvider.getDirectionsApiKey();
+            debugPrint('MapScreen: directions apiKey from provider: $apiKey');
+            final actualKey = apiKey ?? 'YOUR_DIRECTIONS_API_KEY';
+
+            final points = await directions_helper.RouteHelper.getRoute(
+              origin: gmaps.LatLng(origin.latitude, origin.longitude),
+              destination: gmaps.LatLng(target.latitude, target.longitude),
+              apiKey: actualKey,
+              mode: 'driving',
+            );
+            debugPrint('MapScreen: received ${points.length} route points');
+            if (points.isNotEmpty) {
+              // convert google LatLng -> latlong2 LatLng
+              _routePoints = points
+                  .map((p) => LatLng(p.latitude, p.longitude))
+                  .toList();
+              _showRoute = true;
+            } else {
+              // fallback: straight line
+              _routePoints = [origin, target];
+              _showRoute = true;
+            }
+          } catch (e) {
+            // on error fallback to straight line
+            _routePoints = [origin, target];
+            _showRoute = true;
+          }
+
           // center map between origin and target
           final center = LatLng(
             (origin.latitude + target.latitude) / 2,
