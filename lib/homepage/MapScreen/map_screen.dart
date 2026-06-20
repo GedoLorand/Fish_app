@@ -224,13 +224,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             _showRoute = true;
           }
 
-          // center map between origin and target
-          final center = LatLng(
-            (origin.latitude + target.latitude) / 2,
-            (origin.longitude + target.longitude) / 2,
-          );
+          // move map to the user's origin (start of the route)
           try {
-            if (_mapReady) _mapController.move(center, 14.5);
+            if (_mapReady) _mapController.move(origin, 15.0);
           } catch (_) {}
           if (mounted) setState(() {});
         } catch (_) {}
@@ -1431,7 +1427,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     Polyline(
                       points: _routePoints,
                       strokeWidth: 5.0,
-                      color: Colors.greenAccent,
+                      color: const Color(0xFF0D47A1), // dark blue
                     ),
                   ],
                 ),
