@@ -253,7 +253,6 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
                                 child: Text('${index + 1}'),
                               ),
                               title: Text(titleText),
-                              subtitle: Text(docId.isNotEmpty ? docId : '—'),
                               trailing: url.isNotEmpty
                                   ? SizedBox(
                                       width: 56,
