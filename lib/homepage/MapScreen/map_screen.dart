@@ -1260,6 +1260,35 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         // Remove any existing entry for this docId
         entries.removeWhere((e) => e is Map && e['docId'] == docId);
 
+        // Cleanup: remove stale entries whose referenced top-level images doc no longer exists
+        final cleaned = <dynamic>[];
+        for (final e in entries) {
+          try {
+            if (e is Map &&
+                e['docId'] is String &&
+                (e['docId'] as String).isNotEmpty) {
+              final String otherId = e['docId'] as String;
+              final otherRef = FirebaseFirestore.instance
+                  .collection('images')
+                  .doc(otherId);
+              try {
+                final otherSnap = await tx.get(otherRef);
+                if (otherSnap.exists) cleaned.add(e);
+                // if not exists, drop
+              } catch (_) {
+                // on error, conservatively keep the entry
+                cleaned.add(e);
+              }
+            } else {
+              // drop placeholders without docId
+            }
+          } catch (_) {
+            // keep on unexpected errors
+            cleaned.add(e);
+          }
+        }
+        entries = cleaned;
+
         final createdAt = (docData['createdAt'] is Timestamp)
             ? docData['createdAt'] as Timestamp
             : Timestamp.now();
@@ -1339,8 +1368,35 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         };
 
         // Remove any existing entry for this docId to avoid duplicates,
-        // then insert at top
+        // clean stale entries, then insert at top
         entries.removeWhere((e) => e is Map && e['docId'] == docId);
+
+        // Cleanup stale entries by verifying top-level images docs exist
+        final cleaned2 = <dynamic>[];
+        for (final e in entries) {
+          try {
+            if (e is Map &&
+                e['docId'] is String &&
+                (e['docId'] as String).isNotEmpty) {
+              final String otherId = e['docId'] as String;
+              final otherRef = FirebaseFirestore.instance
+                  .collection('images')
+                  .doc(otherId);
+              try {
+                final otherSnap = await tx.get(otherRef);
+                if (otherSnap.exists) cleaned2.add(e);
+                // else drop
+              } catch (_) {
+                cleaned2.add(e);
+              }
+            } else {
+              // drop placeholder entries without docId
+            }
+          } catch (_) {
+            cleaned2.add(e);
+          }
+        }
+        entries = cleaned2;
         entries.insert(0, entry);
 
         // Trim to top 10
