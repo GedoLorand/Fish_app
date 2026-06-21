@@ -13,6 +13,15 @@ try {
 
 console.log('Cloud Function module loaded: analyzeImageForFish (Google Vision)');
 
+// Load additional function modules (ai_api exports `api`) and merge exports
+try {
+  const _ai = require('./ai_api');
+  Object.assign(exports, _ai || {});
+  console.log('Loaded ai_api module and merged exports');
+} catch (e) {
+  console.warn('ai_api module not loaded:', e && e.message);
+}
+
 /**
  * Callable function: analyzeImageForFish
  * Uses Google Cloud Vision labelDetection to detect likely labels in an image.

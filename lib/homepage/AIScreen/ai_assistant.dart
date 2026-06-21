@@ -3,6 +3,8 @@ import 'package:login_fish_app/homepage/Header/global_header.dart';
 import 'package:login_fish_app/homepage/Header/custom_drawer.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:login_fish_app/services/ai_service.dart';
+import 'package:login_fish_app/config/ai_config.dart';
 import 'package:get/get.dart';
 
 class AIAssistantScreen extends StatefulWidget {
@@ -98,11 +100,24 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
       return;
     }
     _addMessage('user', q);
-    _addMessage(
-      'assistant',
-      '${'ai_response_prefix'.tr} "$q"\n${'placeholder_response'.tr}',
-    );
+    _addMessage('assistant', 'loading'.tr);
     questionController.clear();
+    AiService.ask(q)
+        .then((r) {
+          setState(() {
+            // replace the loading message with the real response
+            if (_messages.isNotEmpty &&
+                _messages.first['text'] == 'loading'.tr) {
+              _messages.removeAt(0);
+            }
+            _addMessage('assistant', r);
+          });
+        })
+        .catchError((e) {
+          if (_messages.isNotEmpty && _messages.first['text'] == 'loading'.tr)
+            _messages.removeAt(0);
+          _addMessage('assistant', 'ai_error'.tr + ': ${e.toString()}');
+        });
   }
 
   void _askAiAboutSpecies() {
@@ -115,8 +130,21 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
       return;
     }
     _addMessage('user', '${'question_about_species'.tr}$species');
-    _addMessage('assistant', '$species${'species_info_placeholder'.tr}');
+    _addMessage('assistant', 'loading'.tr);
     setState(() => _messageLocked = true);
+    AiService.speciesInfo(species)
+        .then((r) {
+          setState(() {
+            if (_messages.isNotEmpty && _messages.first['text'] == 'loading'.tr)
+              _messages.removeAt(0);
+            _addMessage('assistant', r);
+          });
+        })
+        .catchError((e) {
+          if (_messages.isNotEmpty && _messages.first['text'] == 'loading'.tr)
+            _messages.removeAt(0);
+          _addMessage('assistant', 'ai_error'.tr + ': ${e.toString()}');
+        });
   }
 
   Future<void> _showSpeciesPicker(
@@ -214,6 +242,51 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
                               ),
                               onPressed: () =>
                                   setState(() => _isDayMode = !_isDayMode),
+                            ),
+                            IconButton(
+                              tooltip: 'set_proxy_url'.tr,
+                              icon: Icon(
+                                Icons.settings,
+                                color: textColor,
+                                size: 20,
+                              ),
+                              onPressed: () async {
+                                final controller = TextEditingController();
+                                final current = await AiConfig.getBase();
+                                controller.text = current;
+                                final res = await showDialog<String>(
+                                  context: context,
+                                  builder: (_) => AlertDialog(
+                                    title: Text('set_proxy_url'.tr),
+                                    content: TextField(
+                                      controller: controller,
+                                      decoration: InputDecoration(
+                                        hintText:
+                                            'http://192.168.1.2:3000/v1/ai or https://...',
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: Text('cancel'.tr),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(
+                                          context,
+                                          controller.text.trim(),
+                                        ),
+                                        child: Text('save'.tr),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (res != null && res.isNotEmpty) {
+                                  await AiService.setBase(res);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('proxy_saved'.tr)),
+                                  );
+                                }
+                              },
                             ),
                           ],
                         ),
@@ -364,6 +437,8 @@ class _AIAssistantScreenState extends State<AIAssistantScreen>
                                 _messageLocked = true;
                               });
                               FocusScope.of(context).unfocus();
+                              // Ask AI for a general species description when user applies a selection
+                              _askAiAboutSpecies();
                             },
                             child: Text('apply'.tr),
                           ),
