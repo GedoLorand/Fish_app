@@ -145,6 +145,7 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
       final order = [
         'species',
         'weight',
+        'createdAt',
         'bait',
         'feed',
         'waterTemp',
@@ -568,6 +569,8 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
         return 'species_label'.tr;
       case 'weight':
         return 'weight_kg'.tr;
+      case 'createdAt':
+        return 'date'.tr;
       case 'notes':
         return 'description'.tr;
       case 'description':
@@ -600,11 +603,32 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
           v = double.tryParse(value.replaceAll(',', '.'));
         if (v == null) return value.toString();
         return '${v.toStringAsFixed(3)} kg';
+      case 'createdAt':
+        return _formatCreatedAt(value);
       case 'waterTemp':
         return '${value.toString()}°C';
       default:
         return value.toString();
     }
+  }
+
+  String _formatCreatedAt(dynamic value) {
+    DateTime? dateTime;
+    if (value is Timestamp) {
+      dateTime = value.toDate();
+    } else if (value is DateTime) {
+      dateTime = value;
+    } else if (value is String) {
+      dateTime = DateTime.tryParse(value);
+    }
+    if (dateTime == null) return value.toString();
+
+    final local = dateTime.toLocal();
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final date =
+        '${local.year}-${twoDigits(local.month)}-${twoDigits(local.day)}';
+    final time = '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
+    return '$date ${'time_label'.tr}: $time';
   }
 
   void _openPrivateChat() {
