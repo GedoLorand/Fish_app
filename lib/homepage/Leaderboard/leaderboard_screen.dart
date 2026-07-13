@@ -1,98 +1,78 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:login_fish_app/homepage/widgets/photo_detail_dialog.dart';
+import 'package:login_fish_app/utils/species_names.dart';
 
-class LeaderboardScreen extends StatefulWidget {
+class LeaderboardScreen extends StatelessWidget {
   const LeaderboardScreen({super.key});
 
-  @override
-  State<LeaderboardScreen> createState() => _LeaderboardScreenState();
-}
-
-class _LeaderboardScreenState extends State<LeaderboardScreen> {
-  bool _didCleanup = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // Run a one-time cleanup to remove stale entries from leaderboard/top10
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _maybeCleanupLeaderboard();
-    });
+  Stream<QuerySnapshot<Map<String, dynamic>>> _globalImagesStream() {
+    return FirebaseFirestore.instance.collectionGroup('images').snapshots();
   }
 
-  Future<void> _maybeCleanupLeaderboard() async {
-    if (_didCleanup) return;
-    _didCleanup = true;
-    final lbRef = FirebaseFirestore.instance
-        .collection('leaderboard')
-        .doc('top10');
-    try {
-      // Read leaderboard doc first (not in transaction) so we can run collectionGroup queries
-      final snap = await lbRef.get();
-      if (!snap.exists) return;
-      final data = snap.data() as Map<String, dynamic>?;
-      if (data == null || data['entries'] is! List) return;
-      List entries = List.from(data['entries']);
+  List<Map<String, dynamic>> _buildGlobalTop10(
+    QuerySnapshot<Map<String, dynamic>> snapshot,
+  ) {
+    final byId = <String, Map<String, dynamic>>{};
 
-      final cleaned = <dynamic>[];
-      for (final e in entries) {
-        try {
-          if (e is Map &&
-              e['docId'] is String &&
-              (e['docId'] as String).isNotEmpty) {
-            final String otherId = e['docId'] as String;
-            // Check top-level images doc first
-            try {
-              final otherSnap = await FirebaseFirestore.instance
-                  .collection('images')
-                  .doc(otherId)
-                  .get(GetOptions(source: Source.server));
-              if (otherSnap.exists) {
-                cleaned.add(e);
-                continue;
-              }
-            } catch (_) {}
-            // Fallback: check any images subcollection that stores docId field
-            try {
-              final q = await FirebaseFirestore.instance
-                  .collectionGroup('images')
-                  .where('docId', isEqualTo: otherId)
-                  .limit(1)
-                  .get(GetOptions(source: Source.server));
-              if (q.docs.isNotEmpty) {
-                cleaned.add(e);
-                continue;
-              }
-            } catch (_) {}
-          }
-        } catch (_) {}
-        var finalList = cleaned;
-        if (finalList.length > 10) finalList = finalList.sublist(0, 10);
-        while (finalList.length < 10) {
-          finalList.add({
-            'docId': '',
-            'url': '',
-            'weight': 0,
-            'uploaderName': '',
-            'createdAt': Timestamp.now(),
-          });
-        }
-        await FirebaseFirestore.instance.runTransaction((tx) async {
-          tx.set(lbRef, {'entries': finalList}, SetOptions(merge: true));
-        });
+    for (final doc in snapshot.docs) {
+      final data = Map<String, dynamic>.from(doc.data());
+      final weight = _parseWeight(
+        data['weight'] ?? data['weightKg'] ?? data['kg'],
+      );
+      if (weight == null || weight <= 0) continue;
+
+      data['weight'] = weight;
+      data['docPath'] = doc.reference.path;
+      data['docId'] = (data['docId'] ?? doc.id).toString();
+
+      final key = data['docId'].toString().isNotEmpty
+          ? data['docId'].toString()
+          : doc.reference.path;
+      final previous = byId[key];
+      if (previous == null || weight > (previous['weight'] as num).toDouble()) {
+        byId[key] = data;
       }
-    } catch (_) {
-      // ignore cleanup failures
     }
+
+    final entries = byId.values.toList()
+      ..sort((a, b) {
+        final weightCompare = (b['weight'] as num).compareTo(
+          a['weight'] as num,
+        );
+        if (weightCompare != 0) return weightCompare;
+
+        final aTime = _createdAtMillis(a['createdAt']);
+        final bTime = _createdAtMillis(b['createdAt']);
+        return bTime.compareTo(aTime);
+      });
+
+    return entries.take(10).toList();
+  }
+
+  static double? _parseWeight(dynamic value) {
+    if (value is num) return value.toDouble();
+    if (value is String) return double.tryParse(value.replaceAll(',', '.'));
+    return null;
+  }
+
+  static int _createdAtMillis(dynamic value) {
+    if (value is Timestamp) return value.millisecondsSinceEpoch;
+    if (value is DateTime) return value.millisecondsSinceEpoch;
+    if (value is String) {
+      return DateTime.tryParse(value)?.millisecondsSinceEpoch ?? 0;
+    }
+    return 0;
+  }
+
+  static String _formatWeight(dynamic value) {
+    final parsed = _parseWeight(value);
+    if (parsed == null) return value?.toString() ?? '-';
+    return parsed.toStringAsFixed(3);
   }
 
   @override
   Widget build(BuildContext context) {
-    final lbRef = FirebaseFirestore.instance
-        .collection('leaderboard')
-        .doc('top10');
-
     return Scaffold(
       appBar: AppBar(title: const Text('Toplista')),
       body: Padding(
@@ -106,175 +86,72 @@ class _LeaderboardScreenState extends State<LeaderboardScreen> {
             ),
             const SizedBox(height: 12),
             Expanded(
-              child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-                stream: lbRef.snapshots(),
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: _globalImagesStream(),
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
                     return Center(child: Text('Hiba: ${snapshot.error}'));
                   }
-                  if (!snapshot.hasData)
+                  if (!snapshot.hasData) {
                     return const Center(child: CircularProgressIndicator());
+                  }
 
-                  final data = snapshot.data!.data();
-                  final List entriesRaw =
-                      (data != null && data['entries'] is List)
-                      ? List.from(data['entries'])
-                      : [];
-
-                  if (entriesRaw.isEmpty) {
+                  final entries = _buildGlobalTop10(snapshot.data!);
+                  if (entries.isEmpty) {
                     return const Center(
                       child: Text('Nincs még adat a toplistához.'),
                     );
                   }
-                  // Client-side: sort entries by weight desc and filter out missing docs
-                  entriesRaw.sort((a, b) {
-                    final da = (a is Map) ? a['weight'] : null;
-                    final db = (b is Map) ? b['weight'] : null;
-                    final wa = (da is num)
-                        ? da.toDouble()
-                        : double.negativeInfinity;
-                    final wb = (db is num)
-                        ? db.toDouble()
-                        : double.negativeInfinity;
-                    return wb.compareTo(wa);
-                  });
 
-                  // Validate existence of referenced image docs (remove stale entries)
-                  return FutureBuilder<List<Map<String, dynamic>>>(
-                    future: () async {
-                      final valid = <Map<String, dynamic>>[];
-                      for (final raw in entriesRaw) {
-                        try {
-                          if (raw is! Map) continue;
-                          final Map<String, dynamic> entry =
-                              Map<String, dynamic>.from(raw);
-                          final String docId = (entry['docId'] ?? '')
-                              .toString();
-                          // Skip placeholder / empty docId entries
-                          if (docId.isEmpty) continue;
-                          // Check top-level images collection for doc existence
-                          try {
-                            final snap = await FirebaseFirestore.instance
-                                .collection('images')
-                                .doc(docId)
-                                .get();
-                            if (snap.exists) {
-                              valid.add(entry);
-                              continue;
-                            }
-                          } catch (_) {}
-                          // If not found in top-level, check any images subcollection by matching the 'docId' field
-                          try {
-                            final cg = await FirebaseFirestore.instance
-                                .collectionGroup('images')
-                                .where('docId', isEqualTo: docId)
-                                .limit(1)
-                                .get();
-                            if (cg.docs.isNotEmpty) {
-                              valid.add(entry);
-                              continue;
-                            }
-                          } catch (_) {}
-                          // If no document found, drop this entry (stale)
-                        } catch (_) {}
-                      }
-                      return valid;
-                    }(),
-                    builder: (context, validSnap) {
-                      if (validSnap.connectionState != ConnectionState.done) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      final List<Map<String, dynamic>> valid =
-                          validSnap.data ?? [];
-                      if (valid.isEmpty) {
-                        return const Center(
-                          child: Text('Nincs még adat a toplistához.'),
-                        );
-                      }
+                  return ListView.builder(
+                    itemCount: entries.length,
+                    itemBuilder: (context, index) {
+                      final entry = entries[index];
+                      final url = (entry['url'] ?? '').toString();
+                      final uploader = (entry['uploaderName'] ?? '').toString();
+                      final species = displaySpeciesName(entry);
+                      final titleText = '${_formatWeight(entry['weight'])} kg';
+                      final subtitleParts = <String>[
+                        if (species.trim().isNotEmpty) species,
+                        if (uploader.trim().isNotEmpty) uploader,
+                      ];
 
-                      return ListView.builder(
-                        itemCount: valid.length,
-                        itemBuilder: (context, index) {
-                          final entry = valid[index];
-                          final weight = entry['weight'] ?? 0;
-                          final url = entry['url'] ?? '';
-                          final uploader = entry['uploaderName'] ?? '';
-                          final docId = entry['docId'] ?? '';
-                          final titleText = uploader.isNotEmpty
-                              ? '$weight kg · $uploader'
-                              : '$weight kg';
-
-                          return Card(
-                            child: ListTile(
-                              onTap: () async {
-                                Map<String, dynamic>? fullDoc;
-                                try {
-                                  if (docId.isNotEmpty) {
-                                    final top = await FirebaseFirestore.instance
-                                        .collection('images')
-                                        .doc(docId)
-                                        .get();
-                                    if (top.exists)
-                                      fullDoc = Map<String, dynamic>.from(
-                                        top.data() ?? {},
-                                      );
-                                  }
-                                } catch (_) {}
-                                if (fullDoc == null) {
-                                  try {
-                                    final q = await FirebaseFirestore.instance
-                                        .collectionGroup('images')
-                                        .where('docId', isEqualTo: docId)
-                                        .limit(1)
-                                        .get();
-                                    if (q.docs.isNotEmpty)
-                                      fullDoc = Map<String, dynamic>.from(
-                                        q.docs.first.data()
-                                            as Map<String, dynamic>,
-                                      );
-                                  } catch (_) {}
-                                }
-                                fullDoc ??= {
-                                  'docId': docId,
-                                  'url': url,
-                                  'weight': entry['weight'],
-                                  'uploaderName': entry['uploaderName'],
-                                };
-                                if (!mounted) return;
-                                showDialog(
-                                  context: context,
-                                  builder: (_) => PhotoDetailDialog(
-                                    url: url.isNotEmpty ? url : null,
-                                    doc: fullDoc,
-                                  ),
-                                );
-                              },
-                              leading: CircleAvatar(
-                                child: Text('${index + 1}'),
+                      return Card(
+                        child: ListTile(
+                          onTap: () {
+                            showDialog(
+                              context: context,
+                              builder: (_) => PhotoDetailDialog(
+                                url: url.isNotEmpty ? url : null,
+                                doc: entry,
                               ),
-                              title: Text(titleText),
-                              trailing: url.isNotEmpty
-                                  ? SizedBox(
-                                      width: 56,
-                                      height: 56,
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(6),
-                                        child: Image.network(
-                                          url,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (c, e, s) =>
-                                              const Icon(Icons.broken_image),
-                                        ),
-                                      ),
-                                    )
-                                  : const SizedBox(
-                                      width: 56,
-                                      height: 56,
-                                      child: Icon(Icons.image_not_supported),
+                            );
+                          },
+                          leading: CircleAvatar(child: Text('${index + 1}')),
+                          title: Text(titleText),
+                          subtitle: subtitleParts.isEmpty
+                              ? null
+                              : Text(subtitleParts.join(' · ')),
+                          trailing: url.isNotEmpty
+                              ? SizedBox(
+                                  width: 56,
+                                  height: 56,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Image.network(
+                                      url,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (c, e, s) =>
+                                          const Icon(Icons.broken_image),
                                     ),
-                            ),
-                          );
-                        },
+                                  ),
+                                )
+                              : const SizedBox(
+                                  width: 56,
+                                  height: 56,
+                                  child: Icon(Icons.image_not_supported),
+                                ),
+                        ),
                       );
                     },
                   );
