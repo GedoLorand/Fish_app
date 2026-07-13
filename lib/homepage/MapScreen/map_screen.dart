@@ -36,6 +36,7 @@ import 'package:login_fish_app/homepage/FilterScreen/filter.dart'
 import 'package:login_fish_app/homepage/AIScreen/ai_assistant.dart';
 import 'package:login_fish_app/services/filter_bus.dart';
 import 'package:login_fish_app/homepage/widgets/fish_loader.dart';
+import 'package:login_fish_app/utils/species_names.dart';
 
 String _formatWeight(dynamic w) {
   if (w == null) return '-';
@@ -407,7 +408,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final parts = <String>[];
     try {
       final sp = _currentFilter!['species'] as String?;
-      if (sp != null && sp.trim().isNotEmpty) parts.add(sp);
+      final spKey = _currentFilter!['speciesKey'] as String?;
+      if (spKey != null && spKey.trim().isNotEmpty) {
+        parts.add(localizedSpeciesNameForKey(spKey));
+      } else if (sp != null && sp.trim().isNotEmpty) {
+        parts.add(localizedSpeciesName(sp));
+      }
       final wmin = _currentFilter!['weightMin'];
       final wmax = _currentFilter!['weightMax'];
       if (wmin != null || wmax != null) {
@@ -436,7 +442,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     final parts = <String>[];
     try {
       final sp = _currentFilter!['species'] as String?;
-      if (sp != null && sp.trim().isNotEmpty) parts.add(sp);
+      final spKey = _currentFilter!['speciesKey'] as String?;
+      if (spKey != null && spKey.trim().isNotEmpty) {
+        parts.add(localizedSpeciesNameForKey(spKey));
+      } else if (sp != null && sp.trim().isNotEmpty) {
+        parts.add(localizedSpeciesName(sp));
+      }
       final wmin = _currentFilter!['weightMin'];
       final wmax = _currentFilter!['weightMax'];
       if (wmin != null || wmax != null) {
@@ -1057,31 +1068,32 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       docData['ownerId'] = uid;
       // Make uploads visible globally by default
       docData['public'] = true;
-      // Use provided species from finalMetadata or fallback to generic 'hal'
-      String speciesValue = 'hal';
-      if (finalMetadata != null &&
-          finalMetadata.containsKey('species') &&
+      // Use provided species from finalMetadata or fallback to a generic fish label.
+      String speciesValue = 'fish';
+      if (finalMetadata.containsKey('species') &&
           (finalMetadata['species'] as String).trim().isNotEmpty) {
         speciesValue = finalMetadata['species'] as String;
       }
-      docData['species'] = speciesValue;
+      docData.addAll(speciesStorageFields(speciesValue));
       // Merge any metadata passed programmatically first
       if (metadata != null) {
         final copy = Map<String, dynamic>.from(metadata);
         copy.remove('species');
+        copy.remove('speciesKey');
+        copy.remove('speciesSearch');
         docData.addAll(copy);
       }
       // Merge values entered in the dialog (finalMetadata) so they take precedence
-      if (finalMetadata != null) {
-        final copy2 = Map<String, dynamic>.from(finalMetadata);
-        copy2.remove('species');
-        // If weight provided, ensure it's stored under 'weight'
-        if (copy2.containsKey('weight')) {
-          docData['weight'] = copy2['weight'];
-          copy2.remove('weight');
-        }
-        docData.addAll(copy2);
+      final copy2 = Map<String, dynamic>.from(finalMetadata);
+      copy2.remove('species');
+      copy2.remove('speciesKey');
+      copy2.remove('speciesSearch');
+      // If weight provided, ensure it's stored under 'weight'
+      if (copy2.containsKey('weight')) {
+        docData['weight'] = copy2['weight'];
+        copy2.remove('weight');
       }
+      docData.addAll(copy2);
       // location is not stored per user request
       // Store location if we were able to obtain it so the photo appears on the map
       if (photoPoint != null) {
@@ -1515,12 +1527,16 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                             if (doc == null) continue;
                             final species =
                                 _currentFilter?['species'] as String?;
+                            final speciesKey =
+                                _currentFilter?['speciesKey'] as String?;
                             if (species != null && species.trim().isNotEmpty) {
-                              final ds = (doc['species'] ?? '').toString();
-                              if (!ds.toLowerCase().contains(
-                                species.toLowerCase(),
-                              ))
+                              if (!speciesMatchesDocument(
+                                doc,
+                                query: species,
+                                queryKey: speciesKey,
+                              )) {
                                 continue;
+                              }
                             }
                             final wMin = (_currentFilter?['weightMin'] as num?)
                                 ?.toDouble();
@@ -1858,9 +1874,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                                                 .start,
                                                         children: [
                                                           if (doc['species'] !=
-                                                              null)
+                                                                  null ||
+                                                              doc['speciesKey'] !=
+                                                                  null)
                                                             Text(
-                                                              '${'species_label'.tr}: ${doc['species']}',
+                                                              '${'species_label'.tr}: ${displaySpeciesName(doc)}',
                                                               style: TextStyle(
                                                                 color: AppTheme
                                                                     .textColor,
@@ -2204,9 +2222,12 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                                   crossAxisAlignment:
                                                       CrossAxisAlignment.start,
                                                   children: [
-                                                    if (doc['species'] != null)
+                                                    if (doc['species'] !=
+                                                            null ||
+                                                        doc['speciesKey'] !=
+                                                            null)
                                                       Text(
-                                                        '${'species_label'.tr}: ${doc['species']}',
+                                                        '${'species_label'.tr}: ${displaySpeciesName(doc)}',
                                                         style: TextStyle(
                                                           color: AppTheme
                                                               .textColor,
@@ -2885,7 +2906,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                         final loc = doc['location'] as GeoPoint?;
                         final id = e['ref'].id;
                         final title =
-                            doc['species'] ?? doc['uploaderName'] ?? id;
+                            (doc['species'] != null ||
+                                doc['speciesKey'] != null)
+                            ? displaySpeciesName(doc)
+                            : (doc['uploaderName'] ?? id);
                         DateTime? when;
                         try {
                           final ts = doc['createdAt'];

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:login_fish_app/utils/species_names.dart';
 
 class ClusterStatisticsScreen extends StatelessWidget {
   final List<Map<String, dynamic>> entries;
@@ -23,7 +24,9 @@ class ClusterStatisticsScreen extends StatelessWidget {
 
     for (final e in entries) {
       final doc = e['doc'] as Map<String, dynamic>? ?? {};
-      final sp = (doc['species'] ?? 'Ismeretlen').toString();
+      final sp = (doc['species'] != null || doc['speciesKey'] != null)
+          ? displaySpeciesName(doc)
+          : 'Ismeretlen';
       speciesCount[sp] = (speciesCount[sp] ?? 0) + 1;
 
       // weight

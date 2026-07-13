@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:get/get.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
+import 'package:login_fish_app/utils/species_names.dart';
 
 /// Shows a draggable bottom sheet listing photo entries.
 ///
@@ -128,9 +130,10 @@ Future<void> showClusterEntries(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  if (doc['species'] != null)
+                                  if (doc['species'] != null ||
+                                      doc['speciesKey'] != null)
                                     Text(
-                                      'Fajta: ${doc['species']}',
+                                      '${'species_label'.tr}: ${displaySpeciesName(doc)}',
                                       style: TextStyle(
                                         color: AppTheme.textColor,
                                         fontWeight: FontWeight.bold,

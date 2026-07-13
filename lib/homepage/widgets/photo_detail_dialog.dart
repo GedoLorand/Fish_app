@@ -8,6 +8,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:login_fish_app/homepage/MapScreen/route_helper.dart';
+import 'package:login_fish_app/utils/species_names.dart';
 import 'package:get/get.dart';
 
 class PhotoDetailDialog extends StatefulWidget {
@@ -171,7 +172,9 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
             k == 'ownerId' ||
             k == 'public' ||
             k == 'uploaderName' ||
-            k == 'userDocPath')
+            k == 'userDocPath' ||
+            k == 'speciesKey' ||
+            k == 'speciesSearch')
           return;
         if (order.contains(k)) return;
         if (v == null) return;
@@ -595,6 +598,11 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
   String _displayValueForKey(String key, dynamic value) {
     if (value == null) return '-';
     switch (key) {
+      case 'species':
+        return localizedSpeciesName(
+          value,
+          speciesKey: widget.doc?['speciesKey'] as String?,
+        );
       case 'weight':
         double? v;
         if (value is num)

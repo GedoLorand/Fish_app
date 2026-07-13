@@ -8,6 +8,7 @@ import 'package:login_fish_app/widgets/app_button.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:login_fish_app/services/filter_bus.dart';
+import 'package:login_fish_app/utils/species_names.dart';
 
 class Filter extends StatefulWidget {
   final bool restrictToCurrentUser;
@@ -34,7 +35,7 @@ class _FilterState extends State<Filter> {
   bool _hasChanged = false;
   DateTime? selectedDate;
 
-  final List<String> fishTypes = ['Ponty', 'Csuka', 'Süllő', 'Harcsa', 'Amur'];
+  List<String> get fishTypes => localizedKnownSpeciesSuggestions();
   List<String> dynamicFishSuggestions = [];
 
   // Weight
@@ -150,7 +151,11 @@ class _FilterState extends State<Filter> {
       for (final doc in q.docs) {
         final data = doc.data();
         final s = data['species'];
-        if (s is String && s.trim().isNotEmpty) set.add(s.trim());
+        if (s is String && s.trim().isNotEmpty) {
+          set.add(
+            localizedSpeciesName(s, speciesKey: data['speciesKey'] as String?),
+          );
+        }
       }
       setState(() => dynamicFishSuggestions = set.toList()..sort());
     } catch (_) {}
@@ -175,17 +180,19 @@ class _FilterState extends State<Filter> {
             const SizedBox(height: 8),
             Autocomplete<String>(
               optionsBuilder: (TextEditingValue textEditingValue) {
-                final q = textEditingValue.text.toLowerCase();
-                final source = dynamicFishSuggestions.isNotEmpty
-                    ? dynamicFishSuggestions
-                    : fishTypes;
+                final q = normalizeSpeciesText(textEditingValue.text);
+                final source = {
+                  ...fishTypes,
+                  ...dynamicFishSuggestions,
+                }.toList()..sort();
                 if (q.isEmpty) return const Iterable<String>.empty();
-                return source.where((s) => s.toLowerCase().contains(q));
+                return source.where((s) => normalizeSpeciesText(s).contains(q));
               },
               onSelected: (s) => setState(() {
-                selectedFishType = s;
+                selectedFishType = localizedSpeciesName(s);
+                _hasChanged = true;
                 try {
-                  speciesController.text = s;
+                  speciesController.text = selectedFishType!;
                 } catch (_) {}
               }),
               fieldViewBuilder:
@@ -200,6 +207,11 @@ class _FilterState extends State<Filter> {
                     return TextField(
                       controller: controller,
                       focusNode: focusNode,
+                      inputFormatters: [SpeciesNameInputFormatter()],
+                      onChanged: (_) => setState(() {
+                        selectedFishType = null;
+                        _hasChanged = true;
+                      }),
                       decoration: InputDecoration(
                         hintText: 'enter_or_choose'.tr,
                         border: OutlineInputBorder(),
@@ -232,26 +244,36 @@ class _FilterState extends State<Filter> {
                                     resolvedSpecies.trim().isEmpty) &&
                                 typed.isNotEmpty) {
                               // try to pick nearest from suggestions
-                              final source = dynamicFishSuggestions.isNotEmpty
-                                  ? dynamicFishSuggestions
-                                  : fishTypes;
-                              final low = typed.toLowerCase();
+                              final source = {
+                                ...fishTypes,
+                                ...dynamicFishSuggestions,
+                              }.toList()..sort();
+                              final low = normalizeSpeciesText(typed);
                               // prefer startsWith, then contains
                               String? found = source.firstWhere(
-                                (s) => s.toLowerCase().startsWith(low),
+                                (s) => normalizeSpeciesText(s).startsWith(low),
                                 orElse: () => '',
                               );
                               if (found.isEmpty) {
                                 found = source.firstWhere(
-                                  (s) => s.toLowerCase().contains(low),
+                                  (s) => normalizeSpeciesText(s).contains(low),
                                   orElse: () => '',
                                 );
                               }
-                              if (found.isNotEmpty) resolvedSpecies = found;
+                              if (found.isNotEmpty) {
+                                resolvedSpecies = localizedSpeciesName(found);
+                              } else {
+                                resolvedSpecies = typed;
+                              }
                             }
                             if (resolvedSpecies != null &&
-                                resolvedSpecies.trim().isNotEmpty)
-                              filter['species'] = resolvedSpecies;
+                                resolvedSpecies.trim().isNotEmpty) {
+                              filter['species'] = localizedSpeciesName(
+                                resolvedSpecies,
+                              );
+                              final key = speciesKeyFor(resolvedSpecies);
+                              if (key != null) filter['speciesKey'] = key;
+                            }
                             if (_minWeightIndex != 0)
                               filter['weightMin'] =
                                   (_minWeightIndex - 1) / 10.0;

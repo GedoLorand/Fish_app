@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
+import 'package:login_fish_app/utils/species_names.dart';
 
 // TextInputFormatter that normalizes comma to dot, allows only digits and a single
 // decimal separator and limits fraction length to 3 digits.
@@ -112,6 +113,7 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                           color: AppTheme.textColor.withOpacity(0.85),
                         ),
                       ),
+                      inputFormatters: [SpeciesNameInputFormatter()],
                       validator: (v) => (v == null || v.trim().isEmpty)
                           ? 'required'.tr
                           : null,
@@ -234,8 +236,9 @@ Future<Map<String, dynamic>?> showMetadataDialog(
                 } catch (_) {
                   weight = null;
                 }
+                final speciesFields = speciesStorageFields(speciesCtrl.text);
                 final data = <String, dynamic>{
-                  'species': speciesCtrl.text.trim(),
+                  ...speciesFields,
                   'weight': weight ?? weightCtrl.text.trim(),
                   'bait': baitCtrl.text.trim().isEmpty
                       ? null
