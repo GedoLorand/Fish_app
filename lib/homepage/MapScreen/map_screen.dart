@@ -251,6 +251,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             copy.remove('ownerOnly');
             _currentFilter = copy;
           } else {
+            _filterOnlyMine = false;
             _currentFilter = filter;
           }
           if (_currentFilter == null) {
@@ -391,6 +392,120 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   Map<String, dynamic>? _currentFilter;
+
+  DateTime? _createdAtFromDocument(Map<String, dynamic> doc) {
+    final value = doc['createdAt'];
+    try {
+      if (value is Timestamp) return value.toDate().toLocal();
+      if (value is DateTime) return value.toLocal();
+      if (value is String) return DateTime.tryParse(value)?.toLocal();
+      if (value is int) {
+        return DateTime.fromMillisecondsSinceEpoch(value).toLocal();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  int? _timeFilterToMinutes(dynamic value) {
+    if (value is! Map) return null;
+    final rawHour = value['hour'];
+    final rawMinute = value['minute'];
+    final hour = rawHour is num
+        ? rawHour.toInt()
+        : int.tryParse(rawHour?.toString() ?? '');
+    final minute = rawMinute is num
+        ? rawMinute.toInt()
+        : int.tryParse(rawMinute?.toString() ?? '');
+    if (hour == null ||
+        minute == null ||
+        hour < 0 ||
+        hour > 23 ||
+        minute < 0 ||
+        minute > 59) {
+      return null;
+    }
+    return hour * 60 + minute;
+  }
+
+  bool _entryMatchesActiveFilters(Map<String, dynamic> entry) {
+    final doc = entry['doc'] as Map<String, dynamic>?;
+    if (doc == null) return false;
+
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (_filterOnlyMine && doc['ownerId'] != currentUid) return false;
+
+    final filter = _currentFilter;
+    if (filter == null || filter.isEmpty) return true;
+
+    final species = filter['species'] as String?;
+    final speciesKey = filter['speciesKey'] as String?;
+    if (species != null && species.trim().isNotEmpty) {
+      if (!speciesMatchesDocument(doc, query: species, queryKey: speciesKey)) {
+        return false;
+      }
+    }
+
+    final weightMin = (filter['weightMin'] as num?)?.toDouble();
+    final weightMax = (filter['weightMax'] as num?)?.toDouble();
+    if (weightMin != null || weightMax != null) {
+      final rawWeight = doc['weight'] ?? doc['weightKg'] ?? doc['kg'];
+      final weight = rawWeight is num
+          ? rawWeight.toDouble()
+          : double.tryParse(rawWeight?.toString().replaceAll(',', '.') ?? '');
+      if (weight == null) return false;
+      if (weightMin != null && weight < weightMin) return false;
+      if (weightMax != null && weight > weightMax) return false;
+    }
+
+    final dateIso = filter['date'] as String?;
+    final rawMonth = filter['month'];
+    final rawYear = filter['year'];
+    final month = rawMonth is num
+        ? rawMonth.toInt()
+        : int.tryParse(rawMonth?.toString() ?? '');
+    final year = rawYear is num
+        ? rawYear.toInt()
+        : int.tryParse(rawYear?.toString() ?? '');
+    final startMinutes = _timeFilterToMinutes(filter['startTime']);
+    final endMinutes = _timeFilterToMinutes(filter['endTime']);
+    final needsCreatedAt =
+        dateIso != null ||
+        month != null ||
+        year != null ||
+        startMinutes != null ||
+        endMinutes != null;
+    final created = needsCreatedAt ? _createdAtFromDocument(doc) : null;
+    if (needsCreatedAt && created == null) return false;
+
+    if (created != null) {
+      if (month != null && created.month != month) return false;
+      if (year != null && created.year != year) return false;
+
+      if (dateIso != null) {
+        final filterDate = DateTime.tryParse(dateIso)?.toLocal();
+        if (filterDate == null ||
+            created.year != filterDate.year ||
+            created.month != filterDate.month ||
+            created.day != filterDate.day) {
+          return false;
+        }
+      }
+
+      final createdMinutes = created.hour * 60 + created.minute;
+      if (startMinutes != null && endMinutes != null) {
+        final isInside = startMinutes <= endMinutes
+            ? createdMinutes >= startMinutes && createdMinutes <= endMinutes
+            : createdMinutes >= startMinutes || createdMinutes <= endMinutes;
+        if (!isInside) return false;
+      } else if (startMinutes != null && createdMinutes < startMinutes) {
+        return false;
+      } else if (endMinutes != null && createdMinutes > endMinutes) {
+        return false;
+      }
+    }
+
+    return true;
+  }
 
   String _formatTimeMap(Map? t) {
     if (t == null) return '-';
@@ -1438,7 +1553,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final String? _currentUid = FirebaseAuth.instance.currentUser?.uid;
     return Scaffold(
       body: Stack(
         children: [
@@ -1517,62 +1631,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                         try {
                           final LatLng? p = e['point'] as LatLng?;
                           if (p == null) continue;
-                          if (_filterOnlyMine) {
-                            final doc = e['doc'] as Map<String, dynamic>?;
-                            if (doc == null) continue;
-                            if (doc['ownerId'] != _currentUid) continue;
-                          }
-                          if (_currentFilter != null) {
-                            final doc = e['doc'] as Map<String, dynamic>?;
-                            if (doc == null) continue;
-                            final species =
-                                _currentFilter?['species'] as String?;
-                            final speciesKey =
-                                _currentFilter?['speciesKey'] as String?;
-                            if (species != null && species.trim().isNotEmpty) {
-                              if (!speciesMatchesDocument(
-                                doc,
-                                query: species,
-                                queryKey: speciesKey,
-                              )) {
-                                continue;
-                              }
-                            }
-                            final wMin = (_currentFilter?['weightMin'] as num?)
-                                ?.toDouble();
-                            final wMax = (_currentFilter?['weightMax'] as num?)
-                                ?.toDouble();
-                            if (wMin != null || wMax != null) {
-                              double? w;
-                              final val = doc['weight'];
-                              if (val is num)
-                                w = val.toDouble();
-                              else if (val is String)
-                                w = double.tryParse(val.replaceAll(',', '.'));
-                              if (w == null) continue;
-                              if (wMin != null && w < wMin) continue;
-                              if (wMax != null && w > wMax) continue;
-                            }
-                            final dateIso = _currentFilter?['date'] as String?;
-                            if (dateIso != null) {
-                              try {
-                                final docCreated = doc['createdAt'];
-                                DateTime? created;
-                                if (docCreated is Timestamp)
-                                  created = docCreated.toDate();
-                                else if (docCreated is DateTime)
-                                  created = docCreated;
-                                if (created == null) continue;
-                                final filterDate = DateTime.parse(dateIso);
-                                if (!(created.year == filterDate.year &&
-                                    created.month == filterDate.month &&
-                                    created.day == filterDate.day))
-                                  continue;
-                              } catch (_) {
-                                continue;
-                              }
-                            }
-                          }
+                          if (!_entryMatchesActiveFilters(e)) continue;
                           final String id =
                               (e['doc'] != null &&
                                   (e['doc'] as Map).containsKey('docId'))
@@ -1628,16 +1687,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                 p.longitude >= (minLng - eps) &&
                                 p.longitude <= (maxLng + eps);
                             if (!inBox) return false;
-                            if (_filterOnlyMine) {
-                              try {
-                                final doc = e['doc'] as Map<String, dynamic>?;
-                                return doc != null &&
-                                    doc['ownerId'] == _currentUid;
-                              } catch (_) {
-                                return false;
-                              }
-                            }
-                            return true;
+                            return _entryMatchesActiveFilters(e);
                           }).toList();
                           // Deduplicate by docId/path/id
                           final Map<String, Map<String, dynamic>> uniq = {};
@@ -1990,15 +2040,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                           p.longitude >= (minLng - eps) &&
                           p.longitude <= (maxLng + eps);
                       if (!inBox) return false;
-                      if (_filterOnlyMine) {
-                        try {
-                          final doc = e['doc'] as Map<String, dynamic>?;
-                          return doc != null && doc['ownerId'] == _currentUid;
-                        } catch (_) {
-                          return false;
-                        }
-                      }
-                      return true;
+                      return _entryMatchesActiveFilters(e);
                     }).toList();
                     final Map<String, Map<String, dynamic>> uniq = {};
                     for (final e in filtered) {
@@ -2290,6 +2332,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                       final match = _photoEntries.firstWhere((e) {
                         final LatLng? p = e['point'] as LatLng?;
                         return p != null &&
+                            _entryMatchesActiveFilters(e) &&
                             p.latitude == mp.latitude &&
                             p.longitude == mp.longitude;
                       }, orElse: () => {});
