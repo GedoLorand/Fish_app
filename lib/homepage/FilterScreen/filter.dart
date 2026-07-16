@@ -1013,7 +1013,7 @@ class _FilterState extends State<Filter> {
                                         FixedExtentScrollController(
                                           initialItem: math.min(
                                             math.max(_startTimeIndex, 0),
-                                            24 * 60,
+                                            24 * 6,
                                           ),
                                         ),
                                     onSelectedItemChanged: (i) => setState(() {
@@ -1021,7 +1021,7 @@ class _FilterState extends State<Filter> {
                                       if (i == 0) {
                                         startTime = null;
                                       } else {
-                                        final minutes = i - 1;
+                                        final minutes = (i - 1) * 10;
                                         startTime = TimeOfDay(
                                           hour: minutes ~/ 60,
                                           minute: minutes % 60,
@@ -1030,7 +1030,7 @@ class _FilterState extends State<Filter> {
                                       _hasChanged = true;
                                     }),
                                     children: List<Widget>.generate(
-                                      24 * 60 + 1,
+                                      24 * 6 + 1,
                                       (i) {
                                         final diff = (i - _startTimeIndex)
                                             .abs();
@@ -1093,7 +1093,7 @@ class _FilterState extends State<Filter> {
                                             ),
                                           );
                                         }
-                                        final minutes = i - 1;
+                                        final minutes = (i - 1) * 10;
                                         final hh = (minutes ~/ 60)
                                             .toString()
                                             .padLeft(2, '0');
@@ -1200,7 +1200,7 @@ class _FilterState extends State<Filter> {
                                         FixedExtentScrollController(
                                           initialItem: math.min(
                                             math.max(_endTimeIndex, 0),
-                                            24 * 60,
+                                            24 * 6,
                                           ),
                                         ),
                                     onSelectedItemChanged: (i) => setState(() {
@@ -1208,7 +1208,7 @@ class _FilterState extends State<Filter> {
                                       if (i == 0) {
                                         endTime = null;
                                       } else {
-                                        final minutes = i - 1;
+                                        final minutes = (i - 1) * 10;
                                         endTime = TimeOfDay(
                                           hour: minutes ~/ 60,
                                           minute: minutes % 60,
@@ -1217,7 +1217,7 @@ class _FilterState extends State<Filter> {
                                       _hasChanged = true;
                                     }),
                                     children: List<Widget>.generate(
-                                      24 * 60 + 1,
+                                      24 * 6 + 1,
                                       (i) {
                                         final diff = (i - _endTimeIndex).abs();
                                         final opacity = _opacityFor(
@@ -1279,7 +1279,7 @@ class _FilterState extends State<Filter> {
                                             ),
                                           );
                                         }
-                                        final minutes = i - 1;
+                                        final minutes = (i - 1) * 10;
                                         final hh = (minutes ~/ 60)
                                             .toString()
                                             .padLeft(2, '0');
