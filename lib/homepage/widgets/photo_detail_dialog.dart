@@ -166,6 +166,7 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
             k == 'point' ||
             k == 'fileName' ||
             k == 'storagePath' ||
+            k == 'docPath' ||
             k == 'docId' ||
             k == 'uid' ||
             k == 'location' ||

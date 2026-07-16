@@ -3,7 +3,7 @@ import 'package:login_fish_app/backend-login/login.dart';
 import 'package:login_fish_app/homepage/Initial/initialType.dart';
 import 'package:login_fish_app/homepage/GalleryScreen/Gallery.dart';
 import 'package:login_fish_app/homepage/FilterScreen/filter.dart';
-import 'package:login_fish_app/homepage/AIScreen/ai_assistant.dart';
+// import 'package:login_fish_app/homepage/AIScreen/ai_assistant.dart';
 import 'package:login_fish_app/services/filter_bus.dart';
 //import 'package:flutterfishapp/UserScreen/user.dart';
 import 'package:login_fish_app/homepage/SettingsScreen/settings.dart';
@@ -91,6 +91,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                   },
                 ),
                 Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
+                /*
                 _buildListTile(
                   icon: Icons.smart_toy,
                   text: 'ai_assistant',
@@ -104,6 +105,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                     );
                   },
                 ),
+                */
                 Divider(color: AppTheme.textColor.withValues(alpha: 0.3)),
                 _buildListTile(
                   icon: Icons.settings,

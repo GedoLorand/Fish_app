@@ -2375,6 +2375,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ),
             ),
           // Gallery button top-right
+          /*
           // Event button top-left (under header) - placeholder icon, behaviour to be added
           // Event button (top-left) with sparkle/pulse
           Positioned(
@@ -2466,6 +2467,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
+          */
 
           // Leaderboard button under event icon
           Positioned(
@@ -2609,6 +2611,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
+          /*
           // AI Assistant button placed between Gallery and Clear-filter
           Positioned(
             // place with larger spacing between gallery (top:16) and clear-filter (now top:112)
@@ -2638,6 +2641,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
+          */
           // Route and filter controls (moved to separate file)
           // Distance-to-target bar (updates every minute)
           // Position the bar above the camera FAB so it doesn't overlap it.
