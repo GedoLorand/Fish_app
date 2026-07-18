@@ -431,6 +431,9 @@ class _ReportsAdminScreenState extends State<ReportsAdminScreen> {
                                 builder: (c) => PhotoDetailDialog(
                                   url: merged['url'] as String? ?? imageUrl,
                                   doc: merged,
+                                  imageDocId:
+                                      (merged['imageDocId'] ?? merged['docId'])
+                                          ?.toString(),
                                 ),
                               );
                             }

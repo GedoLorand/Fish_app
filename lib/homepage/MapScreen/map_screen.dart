@@ -1653,6 +1653,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                             onTap: () => _showPhotoDialog(
                               e['url'] as String,
                               e['doc'] as Map<String, dynamic>,
+                              imageDocId: (e['docId'] ?? e['id'])?.toString(),
                             ),
                           ),
                         );
@@ -1857,6 +1858,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                                     item['url'] as String,
                                                     item['doc']
                                                         as Map<String, dynamic>,
+                                                    imageDocId:
+                                                        (item['docId'] ??
+                                                                item['id'])
+                                                            ?.toString(),
                                                   );
                                                 },
                                                 child: Column(
@@ -2179,7 +2184,13 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                         child: InkWell(
                                           onTap: () {
                                             Navigator.of(context).pop();
-                                            _showPhotoDialog(url, doc);
+                                            _showPhotoDialog(
+                                              url,
+                                              doc,
+                                              imageDocId:
+                                                  (item['docId'] ?? item['id'])
+                                                      ?.toString(),
+                                            );
                                           },
                                           child: Column(
                                             crossAxisAlignment:
@@ -2340,6 +2351,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                         _showPhotoDialog(
                           match['url'] as String,
                           match['doc'] as Map<String, dynamic>,
+                          imageDocId: (match['docId'] ?? match['id'])
+                              ?.toString(),
                         );
                       }
                     } catch (_) {}
@@ -2829,10 +2842,15 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     );
   }
 
-  void _showPhotoDialog(String url, Map<String, dynamic> doc) {
+  void _showPhotoDialog(
+    String url,
+    Map<String, dynamic> doc, {
+    String? imageDocId,
+  }) {
     showDialog(
       context: context,
-      builder: (_) => PhotoDetailDialog(url: url, doc: doc),
+      builder: (_) =>
+          PhotoDetailDialog(url: url, doc: doc, imageDocId: imageDocId),
     );
   }
 
@@ -2997,6 +3015,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                             _showPhotoDialog(
                               url ?? '',
                               Map<String, dynamic>.from(doc),
+                              imageDocId: e['ref'].id,
                             );
                           },
                         );

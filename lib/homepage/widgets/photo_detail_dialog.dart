@@ -14,8 +14,10 @@ import 'package:get/get.dart';
 class PhotoDetailDialog extends StatefulWidget {
   final String? url;
   final Map<String, dynamic>? doc;
+  final String? imageDocId;
 
-  const PhotoDetailDialog({Key? key, this.url, this.doc}) : super(key: key);
+  const PhotoDetailDialog({Key? key, this.url, this.doc, this.imageDocId})
+    : super(key: key);
 
   @override
   State<PhotoDetailDialog> createState() => _PhotoDetailDialogState();
@@ -31,15 +33,41 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
   @override
   void initState() {
     super.initState();
+    _initializeChatIdentifiers();
     _loadAvatar();
+  }
+
+  String? _nonEmptyString(dynamic value) {
+    final text = value?.toString().trim();
+    return text == null || text.isEmpty ? null : text;
+  }
+
+  void _initializeChatIdentifiers() {
+    final doc = widget.doc;
+    _ownerId = _nonEmptyString(doc?['ownerId'] ?? doc?['uid']);
+
+    final docPath = _nonEmptyString(doc?['docPath'] ?? doc?['path']);
+    String? idFromPath;
+    if (docPath != null) {
+      final pathParts = docPath
+          .split('/')
+          .where((part) => part.isNotEmpty)
+          .toList();
+      if (pathParts.isNotEmpty) idFromPath = _nonEmptyString(pathParts.last);
+    }
+
+    _imageDocId =
+        _nonEmptyString(widget.imageDocId) ??
+        _nonEmptyString(doc?['docId']) ??
+        _nonEmptyString(doc?['imageDocId']) ??
+        idFromPath ??
+        _nonEmptyString(doc?['fileName']);
   }
 
   Future<void> _loadAvatar() async {
     try {
       // Try to fetch avatar of the uploader (ownerId) from Firestore
-      final ownerId = widget.doc != null && widget.doc!.containsKey('ownerId')
-          ? (widget.doc!['ownerId'] as String?)
-          : null;
+      final ownerId = _ownerId;
       if (ownerId != null && ownerId.trim().isNotEmpty) {
         try {
           final userDoc = await FirebaseFirestore.instance
@@ -66,13 +94,6 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
           }
         } catch (_) {}
       }
-      // store ownerId and imageDocId for chat/actions
-      _ownerId = ownerId;
-      _imageDocId = widget.doc != null && widget.doc!.containsKey('docId')
-          ? (widget.doc!['docId'] as String?)
-          : (widget.doc != null && widget.doc!.containsKey('fileName')
-                ? (widget.doc!['fileName'] as String?)
-                : null);
       // Fallback: use local user avatar from shared preferences
       final prefs = await SharedPreferences.getInstance();
       // try to load a cached per-owner avatar in prefs before falling back to generic

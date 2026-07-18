@@ -41,7 +41,10 @@ class _GalleryState extends State<Gallery> {
         .snapshots();
   }
 
-  void _showPhotoDetails(Map<String, dynamic> data) {
+  void _showPhotoDetails(
+    Map<String, dynamic> data, {
+    required String imageDocId,
+  }) {
     final url = data['url'] as String?;
     final species = data['species'] ?? '-';
     final weight = data['weight'] ?? '-';
@@ -52,7 +55,8 @@ class _GalleryState extends State<Gallery> {
 
     showDialog(
       context: context,
-      builder: (context) => PhotoDetailDialog(url: url, doc: data),
+      builder: (context) =>
+          PhotoDetailDialog(url: url, doc: data, imageDocId: imageDocId),
     );
   }
 
@@ -88,7 +92,8 @@ class _GalleryState extends State<Gallery> {
                       final data = docs[index].data();
                       final url = data['url'] as String?;
                       return GestureDetector(
-                        onTap: () => _showPhotoDetails(data),
+                        onTap: () =>
+                            _showPhotoDetails(data, imageDocId: docs[index].id),
                         child: Card(
                           clipBehavior: Clip.hardEdge,
                           shape: RoundedRectangleBorder(

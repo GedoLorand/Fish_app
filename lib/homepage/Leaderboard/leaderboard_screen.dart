@@ -124,6 +124,7 @@ class LeaderboardScreen extends StatelessWidget {
                               builder: (_) => PhotoDetailDialog(
                                 url: url.isNotEmpty ? url : null,
                                 doc: entry,
+                                imageDocId: entry['docId']?.toString(),
                               ),
                             );
                           },
