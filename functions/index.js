@@ -346,55 +346,132 @@ if (functions && functions.firestore && typeof functions.firestore.document === 
   }
 }
 
-// Firestore trigger: when a message is created under supported /messages subcollections,
-// notify the image owner by incrementing their unreadMessages counter and writing
-// a notification document under users/{ownerId}/notifications/{autoId}.
+// Notify every conversation participant except the sender. The deterministic
+// notification id makes this safe even if both a v1 and v2 trigger handle the
+// same Firestore event.
+async function _notifyMessageRecipients(
+  msg,
+  parentRef,
+  messageId,
+  logPrefix,
+  messageRef,
+) {
+  const imageSnap = await parentRef.get();
+  if (!imageSnap.exists) {
+    console.log(`${logPrefix}: parent image doc not found`, parentRef.path);
+    return null;
+  }
+
+  const imageData = imageSnap.data() || {};
+  const ownerId = imageData.ownerId || imageData.owner || null;
+  const senderUid = typeof msg.senderUid === 'string' ? msg.senderUid : null;
+  const allParticipants = new Set();
+
+  if (Array.isArray(msg.participants)) {
+    for (const uid of msg.participants) {
+      if (typeof uid === 'string' && uid.trim()) {
+        allParticipants.add(uid.trim());
+      }
+    }
+  }
+  if (ownerId) allParticipants.add(ownerId);
+  if (senderUid) allParticipants.add(senderUid);
+
+  // Recover participants from the history as well. This keeps replies from
+  // older app versions visible to the original sender.
+  const historySnapshot = await parentRef.collection('messages').get();
+  for (const historyDoc of historySnapshot.docs) {
+    const historyMessage = historyDoc.data() || {};
+    if (typeof historyMessage.senderUid === 'string' &&
+        historyMessage.senderUid.trim()) {
+      allParticipants.add(historyMessage.senderUid.trim());
+    }
+    if (Array.isArray(historyMessage.participants)) {
+      for (const uid of historyMessage.participants) {
+        if (typeof uid === 'string' && uid.trim()) {
+          allParticipants.add(uid.trim());
+        }
+      }
+    }
+  }
+
+  const participantList = Array.from(allParticipants).sort();
+  if (messageRef && participantList.length > 0) {
+    await messageRef.set({ participants: participantList }, { merge: true });
+  }
+
+  const recipients = new Set(allParticipants);
+  if (senderUid) recipients.delete(senderUid);
+
+  if (recipients.size === 0) {
+    console.log(`${logPrefix}: no recipients for`, parentRef.path);
+    return null;
+  }
+
+  const db = admin.firestore();
+  const safeEventId = Buffer.from(
+    `${parentRef.path}/${messageId || 'unknown'}`,
+  ).toString('base64url');
+
+  await Promise.all(Array.from(recipients).map(async (recipientUid) => {
+    const userRef = db.collection('users').doc(recipientUid);
+    const notificationRef = userRef
+      .collection('notifications')
+      .doc(`message_${safeEventId}`);
+
+    await db.runTransaction(async (transaction) => {
+      const existingNotification = await transaction.get(notificationRef);
+      if (existingNotification.exists) return;
+
+      transaction.set(userRef, {
+        unreadMessages: admin.firestore.FieldValue.increment(1),
+      }, { merge: true });
+      transaction.set(notificationRef, {
+        type: 'message',
+        imagePath: parentRef.path,
+        imageId: parentRef.id || null,
+        messageId: messageId || null,
+        fromUid: senderUid,
+        toUid: recipientUid,
+        excerpt: typeof msg.text === 'string'
+          ? (msg.text.length > 300
+            ? `${msg.text.substring(0, 300)}...`
+            : msg.text)
+          : null,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        read: false,
+      });
+    });
+
+    console.log(
+      `${logPrefix}: notified participant`,
+      recipientUid,
+      'for image',
+      parentRef.path,
+    );
+  }));
+
+  return null;
+}
+
+// Firestore trigger: when a message is created under a supported messages
+// subcollection, notify all recipients in the conversation.
 function _handleMessageCreated(snap, context) {
   return (async () => {
     try {
       const msg = snap.data() || {};
-      const senderUid = msg.senderUid || null;
-      // Determine parent image document (parent of this messages collection)
       const parent = snap.ref.parent.parent; // DocumentReference
       if (!parent) {
         console.log('onMessageCreated: no parent doc for message', context && context.params && context.params.messageId);
         return null;
       }
-      const imageSnap = await parent.get();
-      if (!imageSnap.exists) {
-        console.log('onMessageCreated: parent image doc not found', parent.path);
-        return null;
-      }
-      const imageData = imageSnap.data() || {};
-      const ownerId = imageData.ownerId || imageData.owner || null;
-      if (!ownerId) {
-        console.log('onMessageCreated: no ownerId on image', parent.path);
-        return null;
-      }
-      if (senderUid && senderUid === ownerId) {
-        // Owner commented on own image; don't increment
-        console.log('onMessageCreated: sender is owner, skipping increment', ownerId);
-        return null;
-      }
-
-      const db = admin.firestore();
-      const userRef = db.collection('users').doc(ownerId);
-      // Increment unreadMessages atomically
-      await userRef.set({ unreadMessages: admin.firestore.FieldValue.increment(1) }, { merge: true });
-
-      // Create a notification document for richer UI/history
-      const notif = {
-        type: 'message',
-        imagePath: parent.path,
-        imageId: parent.id || null,
-        messageId: context && context.params && context.params.messageId,
-        fromUid: senderUid || null,
-        excerpt: (typeof msg.text === 'string' ? (msg.text.length > 300 ? msg.text.substring(0, 300) + '...' : msg.text) : null),
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        read: false,
-      };
-      await userRef.collection('notifications').add(notif);
-      console.log('onMessageCreated: notified owner', ownerId, 'for image', parent.path);
+      await _notifyMessageRecipients(
+        msg,
+        parent,
+        (context && context.params && context.params.messageId) || snap.id,
+        'onMessageCreated',
+        snap.ref,
+      );
     } catch (e) {
       console.warn('onMessageCreated: handler failed', e && e.message || e);
     }
@@ -456,34 +533,18 @@ try {
     try {
       const after = event.data && event.data; // proto-like
       const msg = extractDataFromV2(after) || {};
-      const senderUid = msg.senderUid || null;
       const imageId = event.params && event.params.imageId;
-      if (!imageId) return null;
+      const messageId = event.params && event.params.messageId;
+      if (!imageId || !messageId) return null;
       const parentPath = `images/${imageId}`;
       const parentRef = admin.firestore().doc(parentPath);
-      const imageSnap = await parentRef.get();
-      if (!imageSnap.exists) {
-        console.log('onMessageCreated_images_v2: parent image not found', parentPath);
-        return null;
-      }
-      const imageData = imageSnap.data() || {};
-      const ownerId = imageData.ownerId || imageData.owner || null;
-      if (!ownerId) return null;
-      if (senderUid && senderUid === ownerId) return null;
-      const userRef = admin.firestore().collection('users').doc(ownerId);
-      await userRef.set({ unreadMessages: admin.firestore.FieldValue.increment(1) }, { merge: true });
-      const notif = {
-        type: 'message',
-        imagePath: parentPath,
-        imageId: imageId,
-        messageId: event.params && event.params.messageId,
-        fromUid: senderUid || null,
-        excerpt: (typeof msg.text === 'string' ? (msg.text.length > 300 ? msg.text.substring(0, 300) + '...' : msg.text) : null),
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        read: false,
-      };
-      await userRef.collection('notifications').add(notif);
-      console.log('onMessageCreated_images_v2: notified owner', ownerId, 'for image', parentPath);
+      await _notifyMessageRecipients(
+        msg,
+        parentRef,
+        messageId,
+        'onMessageCreated_images_v2',
+        parentRef.collection('messages').doc(messageId),
+      );
     } catch (e) {
       console.warn('onMessageCreated_images_v2 failed', e && e.message || e);
     }
@@ -495,35 +556,19 @@ try {
     try {
       const after = event.data && event.data;
       const msg = extractDataFromV2(after) || {};
-      const senderUid = msg.senderUid || null;
       const userId = event.params && event.params.userId;
       const imageId = event.params && event.params.imageId;
-      if (!userId || !imageId) return null;
+      const messageId = event.params && event.params.messageId;
+      if (!userId || !imageId || !messageId) return null;
       const parentPath = `users/${userId}/images/${imageId}`;
       const parentRef = admin.firestore().doc(parentPath);
-      const imageSnap = await parentRef.get();
-      if (!imageSnap.exists) {
-        console.log('onMessageCreated_userImages_v2: parent image not found', parentPath);
-        return null;
-      }
-      const imageData = imageSnap.data() || {};
-      const ownerId = imageData.ownerId || imageData.owner || userId || null;
-      if (!ownerId) return null;
-      if (senderUid && senderUid === ownerId) return null;
-      const userRef = admin.firestore().collection('users').doc(ownerId);
-      await userRef.set({ unreadMessages: admin.firestore.FieldValue.increment(1) }, { merge: true });
-      const notif = {
-        type: 'message',
-        imagePath: parentPath,
-        imageId: imageId,
-        messageId: event.params && event.params.messageId,
-        fromUid: senderUid || null,
-        excerpt: (typeof msg.text === 'string' ? (msg.text.length > 300 ? msg.text.substring(0, 300) + '...' : msg.text) : null),
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        read: false,
-      };
-      await userRef.collection('notifications').add(notif);
-      console.log('onMessageCreated_userImages_v2: notified owner', ownerId, 'for image', parentPath);
+      await _notifyMessageRecipients(
+        msg,
+        parentRef,
+        messageId,
+        'onMessageCreated_userImages_v2',
+        parentRef.collection('messages').doc(messageId),
+      );
     } catch (e) {
       console.warn('onMessageCreated_userImages_v2 failed', e && e.message || e);
     }

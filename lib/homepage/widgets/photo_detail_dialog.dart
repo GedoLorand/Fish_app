@@ -888,31 +888,43 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
                             return;
                           }
                           try {
-                            // build participants list (include sender and owner if available)
+                            // Keep every existing participant in the thread so
+                            // replies notify the original sender as well.
                             final participants = <String>{currentUid};
-                            if (_ownerId != null && _ownerId!.trim().isNotEmpty)
+                            if (_ownerId != null &&
+                                _ownerId!.trim().isNotEmpty) {
                               participants.add(_ownerId!);
-
-                            // DEBUG: log target path and payload to help find where messages are written
-                            // (remove these prints after debugging)
-                            // ignore: avoid_print
-                            print(
-                              'DEBUG: writing message to: ${imageMessagesRef.path}',
-                            );
-                            // ignore: avoid_print
-                            print(
-                              'DEBUG: message payload: ' +
-                                  {
-                                    'senderUid': currentUid,
-                                    'text': text,
-                                    'participants': participants.toList(),
-                                  }.toString(),
-                            );
+                            }
+                            final existingMessages = await imageMessagesRef
+                                .get();
+                            for (final messageDoc in existingMessages.docs) {
+                              final message =
+                                  messageDoc.data() as Map<String, dynamic>;
+                              final previousSender =
+                                  message['senderUid'] as String?;
+                              if (previousSender != null &&
+                                  previousSender.trim().isNotEmpty) {
+                                participants.add(previousSender);
+                              }
+                              final previousParticipants =
+                                  message['participants'];
+                              if (previousParticipants is List) {
+                                for (final participant
+                                    in previousParticipants) {
+                                  final uid = participant?.toString().trim();
+                                  if (uid != null && uid.isNotEmpty) {
+                                    participants.add(uid);
+                                  }
+                                }
+                              }
+                            }
+                            final participantList = participants.toList()
+                              ..sort();
 
                             await imageMessagesRef.add({
                               'senderUid': currentUid,
                               'text': text,
-                              'participants': participants.toList(),
+                              'participants': participantList,
                               'createdAt': FieldValue.serverTimestamp(),
                             });
                             ctrl.clear();
