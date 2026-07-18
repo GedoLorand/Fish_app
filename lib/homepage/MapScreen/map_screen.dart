@@ -73,6 +73,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   bool _suppressNextClearHint = false;
   late final AnimationController _badgePulseController;
   late final Animation<double> _badgePulseAnimation;
+  late final AnimationController _threadUnreadPulseController;
   File? _imageFile;
   bool _uploading = false;
   Timer? _locationTimer;
@@ -123,6 +124,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     );
     _badgePulseAnimation = Tween<double>(begin: 1.0, end: 1.12).animate(
       CurvedAnimation(parent: _badgePulseController, curve: Curves.easeInOut),
+    );
+    _threadUnreadPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
     );
     // sparkles
     _eventSparkleController = AnimationController(
@@ -387,6 +392,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     } catch (_) {}
     try {
       _badgePulseController.dispose();
+    } catch (_) {}
+    try {
+      _threadUnreadPulseController.dispose();
     } catch (_) {}
     super.dispose();
   }
@@ -2869,6 +2877,54 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     return 'url: $url\nownerId: $owner\npublic: $isPublic\nlocation: $locText';
   }
 
+  DateTime? _messageDateTime(dynamic value) {
+    try {
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      if (value is String) return DateTime.tryParse(value);
+    } catch (_) {}
+    return null;
+  }
+
+  int _nonNegativeInt(dynamic value) {
+    final parsed = value is num
+        ? value.toInt()
+        : int.tryParse(value?.toString() ?? '') ?? 0;
+    return math.max(0, parsed);
+  }
+
+  Future<void> _markMessageThreadAsRead({
+    required String imageId,
+    required DateTime readThrough,
+    required int readCount,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || imageId.trim().isEmpty) return;
+
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid);
+    try {
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final snapshot = await transaction.get(userRef);
+        final data = snapshot.data() ?? <String, dynamic>{};
+        final rawReadMap = data['messageReadAtByImage'];
+        final readMap = rawReadMap is Map
+            ? Map<String, dynamic>.from(rawReadMap)
+            : <String, dynamic>{};
+        readMap[imageId] = Timestamp.fromDate(readThrough);
+        final currentUnread = _nonNegativeInt(data['unreadMessages']);
+
+        transaction.set(userRef, {
+          'messageReadAtByImage': readMap,
+          'unreadMessages': math.max(0, currentUnread - readCount),
+        }, SetOptions(merge: true));
+      });
+    } catch (_) {
+      // The chat should still open even if persisting the read state fails.
+    }
+  }
+
   Future<void> _openMyMessagesLog() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -2879,24 +2935,97 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
       return;
     }
     try {
-      // Clear unread counter for the owner when opening the message log
-      try {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'unreadMessages': 0,
-        }, SetOptions(merge: true));
-      } catch (_) {}
+      final userRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid);
+      final userSnapshot = await userRef.get();
+      final userData = userSnapshot.data() ?? <String, dynamic>{};
+      final storedUnreadCount = _nonNegativeInt(userData['unreadMessages']);
+      final rawReadMap = userData['messageReadAtByImage'];
+      final readAtByImage = <String, DateTime>{};
+      if (rawReadMap is Map) {
+        rawReadMap.forEach((key, value) {
+          final date = _messageDateTime(value);
+          if (date != null) readAtByImage[key.toString()] = date;
+        });
+      }
+
       // Query messages where current user is a participant (array-contains)
       final snap = await FirebaseFirestore.instance
           .collectionGroup('messages')
           .where('participants', arrayContains: user.uid)
           .get();
 
-      // Collect unique parent image document references (parent.parent)
+      // Collect messages by their parent image document.
       final Map<String, DocumentReference> parentRefs = {};
+      final Map<String, List<QueryDocumentSnapshot>> messagesByThread = {};
       for (final d in snap.docs) {
         final parent = d.reference.parent.parent;
-        if (parent != null) parentRefs[parent.path] = parent;
+        if (parent == null) continue;
+        parentRefs[parent.path] = parent;
+        messagesByThread.putIfAbsent(parent.path, () => []).add(d);
       }
+
+      final latestByThread = <String, DateTime>{};
+      final unreadByThread = <String, int>{};
+      final legacyUnreadCandidates =
+          <({String threadPath, DateTime createdAt})>[];
+      var unreadWithStoredReadTime = 0;
+
+      for (final thread in messagesByThread.entries) {
+        final parent = parentRefs[thread.key];
+        if (parent == null) continue;
+        final readAt = readAtByImage[parent.id];
+
+        for (final messageDoc in thread.value) {
+          final message = messageDoc.data() as Map<String, dynamic>;
+          final createdAt = _messageDateTime(message['createdAt']);
+          if (createdAt == null) continue;
+
+          final previousLatest = latestByThread[thread.key];
+          if (previousLatest == null || createdAt.isAfter(previousLatest)) {
+            latestByThread[thread.key] = createdAt;
+          }
+
+          if (message['senderUid'] == user.uid) continue;
+          if (readAt != null) {
+            if (createdAt.isAfter(readAt)) {
+              unreadByThread.update(
+                thread.key,
+                (value) => value + 1,
+                ifAbsent: () => 1,
+              );
+              unreadWithStoredReadTime++;
+            }
+          } else {
+            legacyUnreadCandidates.add((
+              threadPath: thread.key,
+              createdAt: createdAt,
+            ));
+          }
+        }
+      }
+
+      // Existing users did not previously have per-thread read timestamps.
+      // Use the old aggregate badge count to identify only their newest unread
+      // messages instead of marking their entire history as unread.
+      legacyUnreadCandidates.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final legacyUnreadBudget = math.max(
+        0,
+        storedUnreadCount - unreadWithStoredReadTime,
+      );
+      for (final candidate in legacyUnreadCandidates.take(legacyUnreadBudget)) {
+        unreadByThread.update(
+          candidate.threadPath,
+          (value) => value + 1,
+          ifAbsent: () => 1,
+        );
+      }
+
+      final totalUnread = unreadByThread.values.fold<int>(
+        0,
+        (sum, count) => sum + count,
+      );
 
       final entries = <Map<String, dynamic>>[];
       for (final ref in parentRefs.values) {
@@ -2904,22 +3033,22 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           final docSnap = await ref.get();
           if (!docSnap.exists) continue;
           final data = docSnap.data() as Map<String, dynamic>;
-          entries.add({'ref': ref, 'doc': data, 'path': ref.path});
+          entries.add({
+            'ref': ref,
+            'doc': data,
+            'path': ref.path,
+            'latestMessageAt':
+                latestByThread[ref.path] ??
+                DateTime.fromMillisecondsSinceEpoch(0),
+            'unreadCount': unreadByThread[ref.path] ?? 0,
+          });
         } catch (_) {}
       }
 
-      // Sort entries by their doc createdAt (most recent first) client-side
+      // The thread with the newest message should always appear first.
       entries.sort((a, b) {
-        final da = a['doc']['createdAt'];
-        final db = b['doc']['createdAt'];
-        DateTime ta = DateTime.fromMillisecondsSinceEpoch(0);
-        DateTime tb = DateTime.fromMillisecondsSinceEpoch(0);
-        try {
-          if (da is Timestamp) ta = da.toDate();
-        } catch (_) {}
-        try {
-          if (db is Timestamp) tb = db.toDate();
-        } catch (_) {}
+        final ta = a['latestMessageAt'] as DateTime;
+        final tb = b['latestMessageAt'] as DateTime;
         return tb.compareTo(ta);
       });
 
@@ -2931,7 +3060,13 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
         return;
       }
 
-      showModalBottomSheet(
+      if (totalUnread > 0) {
+        try {
+          _threadUnreadPulseController.repeat(reverse: true);
+        } catch (_) {}
+      }
+
+      await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
         backgroundColor: AppTheme.surfaceColor,
@@ -2970,18 +3105,15 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                         final url = doc['url'] as String?;
                         final loc = doc['location'] as GeoPoint?;
                         final id = e['ref'].id;
+                        final unreadCount = e['unreadCount'] as int;
+                        final latestMessageAt =
+                            e['latestMessageAt'] as DateTime;
                         final title =
                             (doc['species'] != null ||
                                 doc['speciesKey'] != null)
                             ? displaySpeciesName(doc)
                             : (doc['uploaderName'] ?? id);
-                        DateTime? when;
-                        try {
-                          final ts = doc['createdAt'];
-                          if (ts is Timestamp) when = ts.toDate();
-                        } catch (_) {}
-
-                        return ListTile(
+                        final tile = ListTile(
                           leading: url != null
                               ? SizedBox(
                                   width: 48,
@@ -2994,12 +3126,41 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                               : CircleAvatar(child: const Icon(Icons.photo)),
                           title: Text(title.toString()),
                           subtitle: Text(
-                            when != null
-                                ? when.toLocal().toString().split('.').first
-                                : e['path'],
+                            latestMessageAt
+                                .toLocal()
+                                .toString()
+                                .split('.')
+                                .first,
                           ),
-                          onTap: () {
+                          trailing: unreadCount > 0
+                              ? Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primaryColor,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    unreadCount.toString(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                )
+                              : null,
+                          onTap: () async {
                             Navigator.of(ctx).pop();
+                            if (unreadCount > 0) {
+                              await _markMessageThreadAsRead(
+                                imageId: id,
+                                readThrough: latestMessageAt,
+                                readCount: unreadCount,
+                              );
+                            }
+                            if (!mounted) return;
                             // Move map if location exists
                             if (loc != null) {
                               try {
@@ -3019,6 +3180,42 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                             );
                           },
                         );
+
+                        if (unreadCount == 0) return tile;
+                        return AnimatedBuilder(
+                          animation: _threadUnreadPulseController,
+                          child: tile,
+                          builder: (context, child) {
+                            final pulse = _threadUnreadPulseController.value;
+                            return Container(
+                              margin: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryColor.withValues(
+                                  alpha: 0.08 + pulse * 0.14,
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: AppTheme.primaryColor.withValues(
+                                    alpha: 0.55 + pulse * 0.45,
+                                  ),
+                                  width: 1.5 + pulse,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppTheme.primaryColor.withValues(
+                                      alpha: pulse * 0.22,
+                                    ),
+                                    blurRadius: 5 + pulse * 7,
+                                  ),
+                                ],
+                              ),
+                              child: child,
+                            );
+                          },
+                        );
                       },
                     ),
                   ),
@@ -3028,6 +3225,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
           );
         },
       );
+      try {
+        _threadUnreadPulseController.stop();
+        _threadUnreadPulseController.reset();
+      } catch (_) {}
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
