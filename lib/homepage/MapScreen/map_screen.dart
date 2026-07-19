@@ -137,7 +137,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     try {
       _eventSparkleController.repeat();
     } catch (_) {}
-    // Start periodic location refresh (every 10 seconds)
+    // Start periodic location refresh (every 3 minutes)
     _startLocationTimer();
     // Subscribe to top-level /images and the current user's /users/{uid}/images
     // and merge results client-side. This avoids relying on collectionGroup
@@ -922,9 +922,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 
   void _startLocationTimer() {
-    // refresh user's position every 10 seconds while the screen is mounted
+    // Refresh the user's position every 3 minutes while the screen is mounted.
     _locationTimer?.cancel();
-    _locationTimer = Timer.periodic(const Duration(seconds: 60), (timer) async {
+    _locationTimer = Timer.periodic(const Duration(minutes: 3), (timer) async {
       try {
         final pos = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.best,
