@@ -37,7 +37,7 @@ class _ClusterPhotoPagerDialogState extends State<ClusterPhotoPagerDialog> {
     _currentIndex = min(max(widget.initialIndex, 0), lastIndex);
     _pageController = PageController(
       initialPage: _currentIndex,
-      viewportFraction: 0.96,
+      viewportFraction: 0.88,
     );
   }
 
@@ -85,6 +85,10 @@ class _ClusterPhotoPagerDialogState extends State<ClusterPhotoPagerDialog> {
                   url: url,
                   doc: doc,
                   imageDocId: imageDocId,
+                  insetPadding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 24,
+                  ),
                 ),
                 builder: (context, child) {
                   double page = _currentIndex.toDouble();
@@ -174,9 +178,15 @@ class PhotoDetailDialog extends StatefulWidget {
   final String? url;
   final Map<String, dynamic>? doc;
   final String? imageDocId;
+  final EdgeInsets? insetPadding;
 
-  const PhotoDetailDialog({Key? key, this.url, this.doc, this.imageDocId})
-    : super(key: key);
+  const PhotoDetailDialog({
+    Key? key,
+    this.url,
+    this.doc,
+    this.imageDocId,
+    this.insetPadding,
+  }) : super(key: key);
 
   @override
   State<PhotoDetailDialog> createState() => _PhotoDetailDialogState();
@@ -365,6 +375,7 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
 
     return Dialog(
       backgroundColor: AppTheme.surfaceColor,
+      insetPadding: widget.insetPadding,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       child: ConstrainedBox(
         constraints: BoxConstraints(
