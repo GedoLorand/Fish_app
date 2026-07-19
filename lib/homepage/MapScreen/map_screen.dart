@@ -1869,6 +1869,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                                         (item['docId'] ??
                                                                 item['id'])
                                                             ?.toString(),
+                                                    clusterEntries:
+                                                        clusterEntries,
+                                                    initialIndex: idx,
                                                   );
                                                 },
                                                 child: Column(
@@ -2196,6 +2199,8 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                               imageDocId:
                                                   (item['docId'] ?? item['id'])
                                                       ?.toString(),
+                                              clusterEntries: clusterEntries,
+                                              initialIndex: idx,
                                             );
                                           },
                                           child: Column(
@@ -2852,11 +2857,20 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     String url,
     Map<String, dynamic> doc, {
     String? imageDocId,
+    List<Map<String, dynamic>>? clusterEntries,
+    int initialIndex = 0,
   }) {
     showDialog(
       context: context,
-      builder: (_) =>
-          PhotoDetailDialog(url: url, doc: doc, imageDocId: imageDocId),
+      builder: (_) {
+        if (clusterEntries != null && clusterEntries.length > 1) {
+          return ClusterPhotoPagerDialog(
+            entries: clusterEntries,
+            initialIndex: initialIndex,
+          );
+        }
+        return PhotoDetailDialog(url: url, doc: doc, imageDocId: imageDocId);
+      },
     );
   }
 

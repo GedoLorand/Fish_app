@@ -11,6 +11,165 @@ import 'package:login_fish_app/homepage/MapScreen/route_helper.dart';
 import 'package:login_fish_app/utils/species_names.dart';
 import 'package:get/get.dart';
 
+class ClusterPhotoPagerDialog extends StatefulWidget {
+  final List<Map<String, dynamic>> entries;
+  final int initialIndex;
+
+  const ClusterPhotoPagerDialog({
+    super.key,
+    required this.entries,
+    required this.initialIndex,
+  });
+
+  @override
+  State<ClusterPhotoPagerDialog> createState() =>
+      _ClusterPhotoPagerDialogState();
+}
+
+class _ClusterPhotoPagerDialogState extends State<ClusterPhotoPagerDialog> {
+  late final PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    final lastIndex = max(0, widget.entries.length - 1);
+    _currentIndex = min(max(widget.initialIndex, 0), lastIndex);
+    _pageController = PageController(
+      initialPage: _currentIndex,
+      viewportFraction: 0.96,
+    );
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.entries.isEmpty) {
+      return const PhotoDetailDialog();
+    }
+
+    return Material(
+      type: MaterialType.transparency,
+      child: Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            itemCount: widget.entries.length,
+            onPageChanged: (index) {
+              setState(() => _currentIndex = index);
+            },
+            itemBuilder: (context, index) {
+              final entry = widget.entries[index];
+              final url = entry['url']?.toString();
+              final rawDoc = entry['doc'];
+              final doc = rawDoc is Map
+                  ? Map<String, dynamic>.from(rawDoc)
+                  : <String, dynamic>{};
+              final imageDocId =
+                  (entry['docId'] ??
+                          entry['id'] ??
+                          doc['docId'] ??
+                          doc['imageDocId'])
+                      ?.toString();
+              final pageKey = imageDocId ?? url ?? 'cluster-photo-$index';
+
+              return AnimatedBuilder(
+                animation: _pageController,
+                child: PhotoDetailDialog(
+                  key: ValueKey(pageKey),
+                  url: url,
+                  doc: doc,
+                  imageDocId: imageDocId,
+                ),
+                builder: (context, child) {
+                  double page = _currentIndex.toDouble();
+                  if (_pageController.hasClients &&
+                      _pageController.position.haveDimensions) {
+                    page = _pageController.page ?? page;
+                  }
+                  final distance = (index - page).clamp(-1.0, 1.0).toDouble();
+                  final scale = 1.0 - (distance.abs() * 0.035);
+
+                  return Transform.scale(
+                    scale: scale,
+                    child: Transform(
+                      alignment: distance > 0
+                          ? Alignment.centerLeft
+                          : Alignment.centerRight,
+                      transform: Matrix4.identity()
+                        ..setEntry(3, 2, 0.0015)
+                        ..rotateY(-distance * 0.18),
+                      child: Opacity(
+                        opacity: 1.0 - (distance.abs() * 0.12),
+                        child: child,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+          if (widget.entries.length > 1)
+            Positioned(
+              top: 6,
+              left: 0,
+              right: 0,
+              child: IgnorePointer(
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 5,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.chevron_left,
+                          color: Colors.white70,
+                          size: 16,
+                        ),
+                        Text(
+                          '${_currentIndex + 1} / ${widget.entries.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right,
+                          color: Colors.white70,
+                          size: 16,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class PhotoDetailDialog extends StatefulWidget {
   final String? url;
   final Map<String, dynamic>? doc;
