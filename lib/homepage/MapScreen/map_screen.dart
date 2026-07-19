@@ -120,10 +120,13 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
     // badge pulse for incoming messages
     _badgePulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 450),
     );
-    _badgePulseAnimation = Tween<double>(begin: 1.0, end: 1.12).animate(
-      CurvedAnimation(parent: _badgePulseController, curve: Curves.easeInOut),
+    _badgePulseAnimation = Tween<double>(begin: 1.0, end: 1.28).animate(
+      CurvedAnimation(
+        parent: _badgePulseController,
+        curve: Curves.easeInOutCubic,
+      ),
     );
     _threadUnreadPulseController = AnimationController(
       vsync: this,
@@ -334,7 +337,7 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               if (n > old && n > 0) {
                 try {
                   _badgePulseController.repeat(reverse: true);
-                  Future.delayed(const Duration(seconds: 2), () {
+                  Future.delayed(const Duration(seconds: 3), () {
                     try {
                       _badgePulseController.stop();
                       _badgePulseController.reset();
@@ -2603,18 +2606,20 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
             top: MediaQuery.of(context).size.height * 0.5,
             left: 16,
             child: SafeArea(
-              child: FloatingActionButton(
-                heroTag: 'my_messages_log',
-                mini: true,
-                backgroundColor: AppTheme.primaryColor,
-                shape: const CircleBorder(
-                  side: BorderSide(color: Colors.black, width: 2),
-                ),
-                onPressed: _openMyMessagesLog,
+              child: SizedBox(
+                width: 40,
+                height: 40,
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Center(
+                    FloatingActionButton(
+                      heroTag: 'my_messages_log',
+                      mini: true,
+                      backgroundColor: AppTheme.primaryColor,
+                      shape: const CircleBorder(
+                        side: BorderSide(color: Colors.black, width: 2),
+                      ),
+                      onPressed: _openMyMessagesLog,
                       child: _outlinedIcon(
                         Icons.mark_chat_unread,
                         size: 18,
@@ -2623,33 +2628,48 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     ),
                     if (_unreadMessagesCount > 0)
                       Positioned(
-                        right: -6,
-                        top: -6,
-                        child: ScaleTransition(
-                          scale: _badgePulseAnimation,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: Colors.redAccent,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 1.5,
-                              ),
-                            ),
-                            constraints: const BoxConstraints(
-                              minWidth: 18,
-                              minHeight: 18,
-                            ),
-                            child: Center(
-                              child: Text(
-                                _unreadMessagesCount > 99
-                                    ? '99+'
-                                    : _unreadMessagesCount.toString(),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
+                        right: -8,
+                        top: -8,
+                        child: IgnorePointer(
+                          child: FadeTransition(
+                            opacity: Tween<double>(
+                              begin: 1.0,
+                              end: 0.58,
+                            ).animate(_badgePulseController),
+                            child: ScaleTransition(
+                              scale: _badgePulseAnimation,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFB71C1C),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 1.5,
+                                  ),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black38,
+                                      blurRadius: 5,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 19,
+                                  minHeight: 19,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    _unreadMessagesCount > 99
+                                        ? '99+'
+                                        : _unreadMessagesCount.toString(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
