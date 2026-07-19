@@ -844,8 +844,9 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
         .collection('images')
         .doc(_imageDocId)
         .collection('messages');
+    final ctrl = TextEditingController();
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppTheme.surfaceColor,
@@ -853,7 +854,6 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
       builder: (ctx) {
-        final TextEditingController ctrl = TextEditingController();
         return Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(ctx).viewInsets.bottom,
@@ -1119,6 +1119,6 @@ class _PhotoDetailDialogState extends State<PhotoDetailDialog> {
           ),
         );
       },
-    );
+    ).whenComplete(ctrl.dispose);
   }
 }

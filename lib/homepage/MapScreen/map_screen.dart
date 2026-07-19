@@ -3218,14 +3218,51 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Text(
-                      'my_message_locations'.tr,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                    padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppTheme.primaryColor.withValues(alpha: 0.55),
                       ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.forum_rounded,
+                            color: Colors.white,
+                            size: 19,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'my_message_locations'.tr,
+                            style: TextStyle(
+                              color: AppTheme.textColor,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'cancel'.tr,
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          icon: Icon(
+                            Icons.close_rounded,
+                            color: AppTheme.textColor,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   Expanded(
