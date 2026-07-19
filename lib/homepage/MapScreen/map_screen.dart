@@ -1861,7 +1861,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                               color: AppTheme.surfaceColor,
                                               child: InkWell(
                                                 onTap: () {
-                                                  Navigator.of(context).pop();
                                                   _showPhotoDialog(
                                                     item['url'] as String,
                                                     item['doc']
@@ -2191,7 +2190,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                         color: AppTheme.surfaceColor,
                                         child: InkWell(
                                           onTap: () {
-                                            Navigator.of(context).pop();
                                             _showPhotoDialog(
                                               url,
                                               doc,
