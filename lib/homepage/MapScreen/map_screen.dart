@@ -1859,6 +1859,15 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                                     vertical: 8,
                                                   ),
                                               color: AppTheme.surfaceColor,
+                                              clipBehavior: Clip.antiAlias,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                                side: BorderSide(
+                                                  color: AppTheme.primaryColor,
+                                                  width: 2,
+                                                ),
+                                              ),
                                               child: InkWell(
                                                 onTap: () {
                                                   _showPhotoDialog(
@@ -1967,6 +1976,9 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                                                 ),
                                                               ),
                                                             ),
+                                                          _buildClusterMoreDetails(
+                                                            doc,
+                                                          ),
                                                         ],
                                                       ),
                                                     ),
@@ -2191,6 +2203,16 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                           vertical: 8,
                                         ),
                                         color: AppTheme.surfaceColor,
+                                        clipBehavior: Clip.antiAlias,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          side: BorderSide(
+                                            color: AppTheme.primaryColor,
+                                            width: 2,
+                                          ),
+                                        ),
                                         child: InkWell(
                                           onTap: () {
                                             _showPhotoDialog(
@@ -2331,6 +2353,11 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                                                           ),
                                                         ),
                                                       ),
+                                                    _buildClusterMoreDetails(
+                                                      doc,
+                                                      includeUploader: false,
+                                                      includeDate: false,
+                                                    ),
                                                   ],
                                                 ),
                                               ),
@@ -2848,6 +2875,100 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  String? _formatClusterDate(dynamic value) {
+    if (value == null) return null;
+    DateTime? dateTime;
+    if (value is Timestamp) {
+      dateTime = value.toDate();
+    } else if (value is DateTime) {
+      dateTime = value;
+    } else if (value is String) {
+      dateTime = DateTime.tryParse(value);
+    }
+    if (dateTime == null) {
+      final text = value.toString().trim();
+      return text.isEmpty ? null : text;
+    }
+
+    final local = dateTime.toLocal();
+    String twoDigits(int number) => number.toString().padLeft(2, '0');
+    return '${local.year}-${twoDigits(local.month)}-${twoDigits(local.day)} '
+        '${twoDigits(local.hour)}:${twoDigits(local.minute)}';
+  }
+
+  Widget _buildClusterMoreDetails(
+    Map<String, dynamic> doc, {
+    bool includeUploader = true,
+    bool includeDate = true,
+  }) {
+    final details = <MapEntry<String, String>>[];
+
+    void addDetail(String label, dynamic value) {
+      final text = value?.toString().trim();
+      if (text != null && text.isNotEmpty) {
+        details.add(MapEntry(label, text));
+      }
+    }
+
+    if (includeUploader) {
+      addDetail('uploader'.tr, doc['uploaderName']);
+    }
+    if (includeDate) {
+      addDetail('date'.tr, _formatClusterDate(doc['createdAt']));
+    }
+    addDetail('bait'.tr, doc['bait']);
+    addDetail('feed'.tr, doc['feed']);
+    addDetail('water_temp'.tr, doc['waterTemp']);
+    addDetail('oxygen'.tr, doc['oxygen']);
+    addDetail('description'.tr, doc['notes'] ?? doc['description']);
+
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(bottom: 4),
+        visualDensity: VisualDensity.compact,
+        iconColor: AppTheme.primaryColor,
+        collapsedIconColor: AppTheme.primaryColor,
+        title: Text(
+          'more'.tr,
+          style: TextStyle(
+            color: AppTheme.primaryColor,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        children: [
+          if (details.isEmpty)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  'no_data'.tr,
+                  style: TextStyle(
+                    color: AppTheme.textColor.withValues(alpha: 0.75),
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            )
+          else
+            for (final detail in details)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    '${detail.key}: ${detail.value}',
+                    style: TextStyle(color: AppTheme.textColor, fontSize: 13),
+                  ),
+                ),
+              ),
         ],
       ),
     );
